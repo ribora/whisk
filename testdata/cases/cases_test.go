@@ -41,6 +41,7 @@ var successCases = []caseSpec{
 	{dir: "embed", format: scan.FormatJSON},
 	{dir: "dive_slice", format: scan.FormatJSON},
 	{dir: "hook_only", format: scan.FormatJSON},
+	{dir: "tags_only", format: scan.FormatJSON},
 	{dir: "xml_body", format: scan.FormatXML},
 	{
 		dir:     "custom_validator",

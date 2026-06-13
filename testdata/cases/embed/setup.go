@@ -10,7 +10,7 @@ type Pagination struct {
 }
 
 type ListRequest struct {
-	Auth       Auth        `scan:"embed"`
-	Pagination *Pagination `scan:"embed"`
-	UserID     string      `scan:"path=userId" validate:"required"`
+	Auth       Auth       `scan:"embed"`
+	Pagination Pagination `scan:"embed"`
+	UserID     string     `scan:"path=userId" validate:"required"`
 }

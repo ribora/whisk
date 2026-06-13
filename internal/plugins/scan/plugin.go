@@ -51,8 +51,7 @@ type lexem struct {
 }
 
 type delegate struct {
-	Name  string
-	IsPtr bool
+	Name string
 }
 
 type sourceField struct {
@@ -75,14 +74,23 @@ func walk(s shared.StructInfo) (lexem, []string, error) {
 		raw := strings.TrimSpace(f.Tag.Get("scan"))
 		switch raw {
 		case "":
+			// No scan tag — this field is the reason a body unmarshal must
+			// be emitted (json.Unmarshal field-name match into s).
 			lex.HasBodyFields = true
 		case "-":
-			// Empty: handled by body unmarshal (or ignored). Dash: skip.
+			// Field opts out of every source; codegen ignores it.
 		case "embed":
 			// embed delegates to a single struct's Parse, so slice/map fields
 			// have no single target to delegate to.
 			if f.IsSlice || f.IsMap {
 				return lexem{}, nil, fmt.Errorf("%s.%s: scan:\"embed\" cannot be used on a slice/map field (%s) — use a parse() hook for per-element binding", s.Name, f.Name, f.Type)
+			}
+			// Pointer embeds used to be allocated as a side effect of the
+			// parent's body unmarshal — fragile and broken once body
+			// becomes conditional. Force value embeds; the parse() hook is
+			// the supported escape hatch for conditional allocation.
+			if f.IsPointer {
+				return lexem{}, nil, fmt.Errorf("%s.%s: scan:\"embed\" on a pointer field (%s) is not supported — use a value embed, or a parse() hook with explicit allocation", s.Name, f.Name, f.Type)
 			}
 			// Must be a named struct: an inline anonymous struct can't carry a
 			// Parse method to delegate to.
@@ -94,7 +102,7 @@ func walk(s shared.StructInfo) (lexem, []string, error) {
 			if f.IsEmbedded {
 				warnings = append(warnings, fmt.Sprintf("%s: embedded field %s uses scan:\"embed\" — the embedded type's generated Parse promotes into %s's method set; prefer a named field", s.Name, f.Name, s.Name))
 			}
-			lex.Delegates = append(lex.Delegates, delegate{Name: f.Name, IsPtr: f.IsPointer})
+			lex.Delegates = append(lex.Delegates, delegate{Name: f.Name})
 		default:
 			sf, err := parseScopedTag(s.Name, f, raw)
 			if err != nil {

@@ -5,7 +5,6 @@
 package embed
 
 import (
-	"encoding/json"
 	"errors"
 	"gitlab.com/gorib/failure"
 	"gitlab.com/gorib/whisk/scan"
@@ -14,11 +13,6 @@ import (
 )
 
 func (s *Auth) Parse(src scan.Source) error {
-	if body := src.Body(); len(body) > 0 {
-		if err := json.Unmarshal(body, s); err != nil {
-			return failure.Wrap("%w: %w", scan.ErrPayload, err)
-		}
-	}
 	if v := src.Lookup("header", "Authorization"); v != "" {
 		s.Token = v
 	}
@@ -26,11 +20,6 @@ func (s *Auth) Parse(src scan.Source) error {
 }
 
 func (s *Pagination) Parse(src scan.Source) error {
-	if body := src.Body(); len(body) > 0 {
-		if err := json.Unmarshal(body, s); err != nil {
-			return failure.Wrap("%w: %w", scan.ErrPayload, err)
-		}
-	}
 	if v := src.Lookup("query", "page"); v != "" {
 		parsed, err := strconv.ParseInt(v, 10, 64)
 		if err != nil {
@@ -49,18 +38,11 @@ func (s *Pagination) Parse(src scan.Source) error {
 }
 
 func (s *ListRequest) Parse(src scan.Source) error {
-	if body := src.Body(); len(body) > 0 {
-		if err := json.Unmarshal(body, s); err != nil {
-			return failure.Wrap("%w: %w", scan.ErrPayload, err)
-		}
-	}
 	if err := s.Auth.Parse(src); err != nil {
 		return err
 	}
-	if s.Pagination != nil {
-		if err := s.Pagination.Parse(src); err != nil {
-			return err
-		}
+	if err := s.Pagination.Parse(src); err != nil {
+		return err
 	}
 	if v := src.Lookup("path", "userId"); v != "" {
 		s.UserID = v
@@ -118,10 +100,8 @@ func (s *ListRequest) Validate() error {
 	if subErr := s.Auth.Validate(); subErr != nil {
 		validate.AppendSubErrors(&errs, subErr, validate.NewFieldSegment("go", "Auth"))
 	}
-	if s.Pagination != nil {
-		if subErr := s.Pagination.Validate(); subErr != nil {
-			validate.AppendSubErrors(&errs, subErr, validate.NewFieldSegment("go", "Pagination"))
-		}
+	if subErr := s.Pagination.Validate(); subErr != nil {
+		validate.AppendSubErrors(&errs, subErr, validate.NewFieldSegment("go", "Pagination"))
 	}
 	if s.UserID == "" {
 		errs = append(errs, &validate.ValidationError{

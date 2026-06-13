@@ -46,7 +46,10 @@ func runScanExpectError(t *testing.T, source, want string) {
 	}
 }
 
-func TestGenerate_emitsBodyUnmarshalAlways(t *testing.T) {
+func TestGenerate_skipsBodyUnmarshalWhenNoBucket1Field(t *testing.T) {
+	// A struct with no untagged fields (bucket-1 empty) has nothing for
+	// json.Unmarshal to populate — the body block must be elided, and the
+	// encoding/json import must not be pulled in.
 	sec := runScan(t, `package sample
 type Empty struct{}
 `, scan.FormatJSON)
@@ -116,40 +119,36 @@ type Auth struct {
 }
 type Req struct {
 	A      Auth  `+"`scan:\"embed\"`"+`
-	BPtr   *Auth `+"`scan:\"embed\"`"+`
 	UserID string `+"`scan:\"path=userId\"`"+`
 }
 `, scan.FormatJSON)
 	code := string(sec.Code)
-	must(t, code,
-		"s.A.Parse(src)",
-		"if s.BPtr != nil",
-		"s.BPtr.Parse(src)",
-	)
+	must(t, code, "s.A.Parse(src)")
 	if len(sec.Warnings) != 0 {
 		t.Errorf("named-field embeds should not warn, got: %v", sec.Warnings)
 	}
 }
 
 func TestGenerate_embedDelegateAfterBody(t *testing.T) {
-	// Security regression (IDOR): the body unmarshal must be emitted BEFORE
-	// the embed delegates, so a request body cannot override a field an
-	// embed populated from a non-body scope (e.g. a principal sourced from
-	// the auth context). See renderOne in render.go.
+	// Security regression (IDOR): when body unmarshal IS emitted (the
+	// struct has a bucket-1 field), it must run BEFORE the embed delegate.
+	// Otherwise a request body could override a field an embed populated
+	// from a non-body scope (e.g. a principal sourced from the auth
+	// context). See renderOne in render.go.
 	sec := runScan(t, `package sample
 type Auth struct {
 	Token string `+"`scan:\"header=Authorization\"`"+`
 }
 type Req struct {
-	A      Auth  `+"`scan:\"embed\"`"+`
-	BPtr   *Auth `+"`scan:\"embed\"`"+`
+	Note   string `+"``"+`
+	A      Auth   `+"`scan:\"embed\"`"+`
 	UserID string `+"`scan:\"path=userId\"`"+`
 }
 `, scan.FormatJSON)
 
 	// Scope the order check to Req.Parse — Auth.Parse (emitted first, since
-	// Auth is declared first) has its own body unmarshal that would
-	// otherwise confuse the index comparison.
+	// Auth is declared first) has its own no-body path that would otherwise
+	// confuse the index comparison.
 	code := string(sec.Code)
 	start := strings.Index(code, "func (s *Req) Parse")
 	if start < 0 {
@@ -159,13 +158,28 @@ type Req struct {
 
 	body := strings.Index(req, "json.Unmarshal(body, s)")
 	valEmbed := strings.Index(req, "s.A.Parse(src)")
-	ptrEmbed := strings.Index(req, "s.BPtr.Parse(src)")
-	if valEmbed < 0 || ptrEmbed < 0 {
-		t.Fatalf("expected body unmarshal and both embed delegates in Req.Parse:\n%s", req)
+	if body < 0 || valEmbed < 0 {
+		t.Fatalf("expected body unmarshal and embed delegate in Req.Parse:\n%s", req)
 	}
-	if body >= 0 {
-		t.Fatalf("unexpected unmarshal with empty body fields list:\n%s", req)
+	if body > valEmbed {
+		t.Fatalf("body unmarshal must precede embed delegate, got body@%d > embed@%d:\n%s",
+			body, valEmbed, req)
 	}
+}
+
+func TestGenerate_embedOnPointerErrors(t *testing.T) {
+	// Pointer-embed used to rely on the parent's body unmarshal to allocate
+	// the indirection — fragile, and broken once body becomes conditional.
+	// Walk now rejects it outright; users wanting optional embeds must own
+	// the allocation in a parse() hook.
+	runScanExpectError(t, `package sample
+type Auth struct {
+	Token string `+"`scan:\"header=Authorization\"`"+`
+}
+type Req struct {
+	A *Auth `+"`scan:\"embed\"`"+`
+}
+`, "scan:\"embed\" on a pointer field")
 }
 
 func TestGenerate_anonymousEmbedWarnsButDelegates(t *testing.T) {

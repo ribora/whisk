@@ -16,12 +16,13 @@ func render(lexems []lexem, format Format) []byte {
 func renderOne(sb *strings.Builder, l lexem, format Format) {
 	fmt.Fprintf(sb, "func (s *%s) Parse(src scan.Source) error {\n", l.Name)
 
-	// Body unmarshal is unconditional per whisk's tag-isolation design:
-	// even tagless structs decode cleanly via json.Unmarshal (field-name
-	// matching). Everything that follows — embed delegates and scoped
-	// lookups — runs AFTER the body so structured sources stay
-	// authoritative: a request body must not override a value an embed
-	// populated from a non-body scope (context/path/query).
+	// Body unmarshal fires only when at least one field has no scan tag —
+	// otherwise json.Unmarshal has nowhere to write and would only risk
+	// failing on a body shape that doesn't match (e.g. an array into a
+	// struct). When emitted, body runs FIRST and embed/scoped lookups
+	// follow, so structured sources stay authoritative: a request body
+	// must not override a value an embed populated from a non-body scope
+	// (context/path/query).
 	if l.HasBodyFields {
 		sb.WriteString("\tif body := src.Body(); len(body) > 0 {\n")
 		fmt.Fprintf(sb, "\t\tif err := %s(body, s); err != nil {\n", format.Unmarshal)
@@ -44,12 +45,6 @@ func renderOne(sb *strings.Builder, l lexem, format Format) {
 }
 
 func renderDelegate(sb *strings.Builder, d delegate) {
-	if d.IsPtr {
-		fmt.Fprintf(sb, "\tif s.%s != nil {\n", d.Name)
-		fmt.Fprintf(sb, "\t\tif err := s.%s.Parse(src); err != nil {\n\t\t\treturn err\n\t\t}\n", d.Name)
-		sb.WriteString("\t}\n")
-		return
-	}
 	fmt.Fprintf(sb, "\tif err := s.%s.Parse(src); err != nil {\n\t\treturn err\n\t}\n", d.Name)
 }
 
@@ -162,8 +157,9 @@ func bitSize(typ string) int {
 }
 
 // neededImports inspects the lexem set to decide which import paths the
-// generated section references. Body unmarshal is always emitted, so the
-// body-format import and failure are always pulled in.
+// generated section references. failure is always pulled in (scoped
+// lookups wrap strconv errors through it); the body-format import is
+// conditional on at least one lexem having body fields.
 func neededImports(lexems []lexem, format Format) []string {
 	wantStrconv := false
 	wantStrings := false
