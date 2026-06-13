@@ -16,18 +16,20 @@ func render(lexems []lexem, format Format) []byte {
 func renderOne(sb *strings.Builder, l lexem, format Format) {
 	fmt.Fprintf(sb, "func (s *%s) Parse(src scan.Source) error {\n", l.Name)
 
-	for _, d := range l.Delegates {
-		renderDelegate(sb, d)
-	}
-
 	// Body unmarshal is unconditional per whisk's tag-isolation design:
 	// even tagless structs decode cleanly via json.Unmarshal (field-name
-	// matching). Scoped lookups below override any body-populated value,
-	// so order matters — body first, lookups last.
+	// matching). Everything that follows — embed delegates and scoped
+	// lookups — runs AFTER the body so structured sources stay
+	// authoritative: a request body must not override a value an embed
+	// populated from a non-body scope (context/path/query).
 	sb.WriteString("\tif body := src.Body(); len(body) > 0 {\n")
 	fmt.Fprintf(sb, "\t\tif err := %s(body, s); err != nil {\n", format.Unmarshal)
 	sb.WriteString("\t\t\treturn failure.Wrap(\"%w: %w\", scan.ErrPayload, err)\n")
 	sb.WriteString("\t\t}\n\t}\n")
+
+	for _, d := range l.Delegates {
+		renderDelegate(sb, d)
+	}
 
 	for _, f := range l.Fields {
 		renderField(sb, f)

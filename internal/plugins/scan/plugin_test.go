@@ -130,6 +130,48 @@ type Req struct {
 	}
 }
 
+func TestGenerate_embedDelegateAfterBody(t *testing.T) {
+	// Security regression (IDOR): the body unmarshal must be emitted BEFORE
+	// the embed delegates, so a request body cannot override a field an
+	// embed populated from a non-body scope (e.g. a principal sourced from
+	// the auth context). See renderOne in render.go.
+	sec := runScan(t, `package sample
+type Auth struct {
+	Token string `+"`scan:\"header=Authorization\"`"+`
+}
+type Req struct {
+	A      Auth  `+"`scan:\"embed\"`"+`
+	BPtr   *Auth `+"`scan:\"embed\"`"+`
+	UserID string `+"`scan:\"path=userId\"`"+`
+}
+`, scan.FormatJSON)
+
+	// Scope the order check to Req.Parse — Auth.Parse (emitted first, since
+	// Auth is declared first) has its own body unmarshal that would
+	// otherwise confuse the index comparison.
+	code := string(sec.Code)
+	start := strings.Index(code, "func (s *Req) Parse")
+	if start < 0 {
+		t.Fatalf("missing Req.Parse in:\n%s", code)
+	}
+	req := code[start:]
+
+	body := strings.Index(req, "json.Unmarshal(body, s)")
+	valEmbed := strings.Index(req, "s.A.Parse(src)")
+	ptrEmbed := strings.Index(req, "s.BPtr.Parse(src)")
+	if body < 0 || valEmbed < 0 || ptrEmbed < 0 {
+		t.Fatalf("expected body unmarshal and both embed delegates in Req.Parse:\n%s", req)
+	}
+	if body > valEmbed {
+		t.Errorf("body unmarshal (idx %d) must precede the value embed delegate (idx %d); body-last lets a request body override embed-populated fields:\n%s",
+			body, valEmbed, req)
+	}
+	if body > ptrEmbed {
+		t.Errorf("body unmarshal (idx %d) must precede the pointer embed delegate (idx %d):\n%s",
+			body, ptrEmbed, req)
+	}
+}
+
 func TestGenerate_anonymousEmbedWarnsButDelegates(t *testing.T) {
 	// Anonymous embed with scan:"embed" still works (delegates the same
 	// way), but the embedded type's Parse promotes into the parent — so it
@@ -390,8 +432,8 @@ func newModule(t *testing.T, source string) string {
 	dir := t.TempDir()
 	whiskRoot := whiskCheckoutRoot(t)
 	files := map[string]string{
-		"go.mod":    "module sample\n\ngo 1.25.0\n\nrequire gitlab.com/gorib/whisk v0.0.0\n",
-		"go.work":   "go 1.25.0\n\nuse (\n\t.\n\t" + whiskRoot + "\n)\n",
+		"go.mod":    "module sample\n\ngo 1.26.0\n\nrequire gitlab.com/gorib/whisk v0.0.0\n",
+		"go.work":   "go 1.26.0\n\nuse (\n\t.\n\t" + whiskRoot + "\n)\n",
 		"sample.go": source,
 	}
 	for name, body := range files {

@@ -214,8 +214,8 @@ func newModule(t *testing.T, source string) string {
 	dir := t.TempDir()
 	whiskRoot := whiskCheckoutRoot(t)
 	files := map[string]string{
-		"go.mod":    "module sample\n\ngo 1.25.0\n\nrequire gitlab.com/gorib/whisk v0.0.0\n",
-		"go.work":   "go 1.25.0\n\nuse (\n\t.\n\t" + whiskRoot + "\n)\n",
+		"go.mod":    "module sample\n\ngo 1.26.0\n\nrequire gitlab.com/gorib/whisk v0.0.0\n",
+		"go.work":   "go 1.26.0\n\nuse (\n\t.\n\t" + whiskRoot + "\n)\n",
 		"sample.go": source,
 	}
 	for name, body := range files {

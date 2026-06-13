@@ -49,17 +49,17 @@ func (s *Pagination) Parse(src scan.Source) error {
 }
 
 func (s *ListRequest) Parse(src scan.Source) error {
+	if body := src.Body(); len(body) > 0 {
+		if err := json.Unmarshal(body, s); err != nil {
+			return failure.Wrap("%w: %w", scan.ErrPayload, err)
+		}
+	}
 	if err := s.Auth.Parse(src); err != nil {
 		return err
 	}
 	if s.Pagination != nil {
 		if err := s.Pagination.Parse(src); err != nil {
 			return err
-		}
-	}
-	if body := src.Body(); len(body) > 0 {
-		if err := json.Unmarshal(body, s); err != nil {
-			return failure.Wrap("%w: %w", scan.ErrPayload, err)
 		}
 	}
 	if v := src.Lookup("path", "userId"); v != "" {
