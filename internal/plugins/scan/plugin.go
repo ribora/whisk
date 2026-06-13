@@ -43,10 +43,11 @@ func (p *Plugin) Generate(structs []shared.StructInfo) (generator.Section, error
 }
 
 type lexem struct {
-	Name      string
-	Delegates []delegate
-	Fields    []sourceField
-	HasHook   bool // *T defines parse(scan.Source) error
+	Name          string
+	Delegates     []delegate
+	Fields        []sourceField
+	HasHook       bool // *T defines parse(scan.Source) error
+	HasBodyFields bool
 }
 
 type delegate struct {
@@ -73,7 +74,9 @@ func walk(s shared.StructInfo) (lexem, []string, error) {
 	for _, f := range s.Fields {
 		raw := strings.TrimSpace(f.Tag.Get("scan"))
 		switch raw {
-		case "", "-":
+		case "":
+			lex.HasBodyFields = true
+		case "-":
 			// Empty: handled by body unmarshal (or ignored). Dash: skip.
 		case "embed":
 			// embed delegates to a single struct's Parse, so slice/map fields

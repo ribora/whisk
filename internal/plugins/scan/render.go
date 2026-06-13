@@ -22,10 +22,12 @@ func renderOne(sb *strings.Builder, l lexem, format Format) {
 	// lookups — runs AFTER the body so structured sources stay
 	// authoritative: a request body must not override a value an embed
 	// populated from a non-body scope (context/path/query).
-	sb.WriteString("\tif body := src.Body(); len(body) > 0 {\n")
-	fmt.Fprintf(sb, "\t\tif err := %s(body, s); err != nil {\n", format.Unmarshal)
-	sb.WriteString("\t\t\treturn failure.Wrap(\"%w: %w\", scan.ErrPayload, err)\n")
-	sb.WriteString("\t\t}\n\t}\n")
+	if l.HasBodyFields {
+		sb.WriteString("\tif body := src.Body(); len(body) > 0 {\n")
+		fmt.Fprintf(sb, "\t\tif err := %s(body, s); err != nil {\n", format.Unmarshal)
+		sb.WriteString("\t\t\treturn failure.Wrap(\"%w: %w\", scan.ErrPayload, err)\n")
+		sb.WriteString("\t\t}\n\t}\n")
+	}
 
 	for _, d := range l.Delegates {
 		renderDelegate(sb, d)
@@ -165,7 +167,9 @@ func bitSize(typ string) int {
 func neededImports(lexems []lexem, format Format) []string {
 	wantStrconv := false
 	wantStrings := false
+	wantBody := false
 	for _, l := range lexems {
+		wantBody = wantBody || l.HasBodyFields
 		for _, f := range l.Fields {
 			if f.ElemType != "" {
 				wantStrings = true
@@ -179,7 +183,10 @@ func neededImports(lexems []lexem, format Format) []string {
 			}
 		}
 	}
-	out := []string{format.Import, "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan"}
+	out := []string{"gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan"}
+	if wantBody {
+		out = append(out, format.Import)
+	}
 	if wantStrconv {
 		out = append(out, "strconv")
 	}

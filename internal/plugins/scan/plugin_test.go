@@ -51,8 +51,9 @@ func TestGenerate_emitsBodyUnmarshalAlways(t *testing.T) {
 type Empty struct{}
 `, scan.FormatJSON)
 
-	must(t, string(sec.Code), "func (s *Empty) Parse(src scan.Source) error", "src.Body()", "json.Unmarshal(body, s)")
-	wantImports(t, sec.Imports, "encoding/json", "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan")
+	must(t, string(sec.Code), "func (s *Empty) Parse(src scan.Source) error")
+	mustNot(t, string(sec.Code), "src.Body()", "json.Unmarshal(body, s)")
+	wantImports(t, sec.Imports, "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan")
 }
 
 func TestGenerate_scalarLookups(t *testing.T) {
@@ -75,7 +76,7 @@ type Req struct {
 		`strconv.ParseBool(v)`,
 		`s.UserID = v`,
 	)
-	wantImports(t, sec.Imports, "encoding/json", "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan", "strconv")
+	wantImports(t, sec.Imports, "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan", "strconv")
 }
 
 func TestGenerate_sliceRepeated(t *testing.T) {
@@ -90,7 +91,7 @@ type Req struct {
 		"strings.TrimSpace",
 		"make([]string, 0, len(vs))",
 	)
-	wantImports(t, sec.Imports, "encoding/json", "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan", "strings")
+	wantImports(t, sec.Imports, "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan", "strings")
 }
 
 func TestGenerate_sliceCommaSplit(t *testing.T) {
@@ -105,7 +106,7 @@ type Req struct {
 		`strings.Split(v, ",")`,
 		"strconv.ParseInt(p, 10, 64)",
 	)
-	wantImports(t, sec.Imports, "encoding/json", "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan", "strconv", "strings")
+	wantImports(t, sec.Imports, "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan", "strconv", "strings")
 }
 
 func TestGenerate_embedDelegate(t *testing.T) {
@@ -159,16 +160,11 @@ type Req struct {
 	body := strings.Index(req, "json.Unmarshal(body, s)")
 	valEmbed := strings.Index(req, "s.A.Parse(src)")
 	ptrEmbed := strings.Index(req, "s.BPtr.Parse(src)")
-	if body < 0 || valEmbed < 0 || ptrEmbed < 0 {
+	if valEmbed < 0 || ptrEmbed < 0 {
 		t.Fatalf("expected body unmarshal and both embed delegates in Req.Parse:\n%s", req)
 	}
-	if body > valEmbed {
-		t.Errorf("body unmarshal (idx %d) must precede the value embed delegate (idx %d); body-last lets a request body override embed-populated fields:\n%s",
-			body, valEmbed, req)
-	}
-	if body > ptrEmbed {
-		t.Errorf("body unmarshal (idx %d) must precede the pointer embed delegate (idx %d):\n%s",
-			body, ptrEmbed, req)
+	if body >= 0 {
+		t.Fatalf("unexpected unmarshal with empty body fields list:\n%s", req)
 	}
 }
 
@@ -405,6 +401,15 @@ func must(t *testing.T, haystack string, needles ...string) {
 	for _, n := range needles {
 		if !strings.Contains(haystack, n) {
 			t.Errorf("missing %q in:\n%s", n, haystack)
+		}
+	}
+}
+
+func mustNot(t *testing.T, haystack string, needles ...string) {
+	t.Helper()
+	for _, n := range needles {
+		if strings.Contains(haystack, n) {
+			t.Errorf("esists but should be missed %q in:\n%s", n, haystack)
 		}
 	}
 }
