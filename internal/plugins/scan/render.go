@@ -157,9 +157,9 @@ func bitSize(typ string) int {
 }
 
 // neededImports inspects the lexem set to decide which import paths the
-// generated section references. failure is always pulled in (scoped
-// lookups wrap strconv errors through it); the body-format import is
-// conditional on at least one lexem having body fields.
+// generated section references. failure is needed only where the code
+// wraps errors: body unmarshal and strconv conversions; the body-format
+// import is conditional on at least one lexem having body fields.
 func neededImports(lexems []lexem, format Format) []string {
 	wantStrconv := false
 	wantStrings := false
@@ -179,7 +179,10 @@ func neededImports(lexems []lexem, format Format) []string {
 			}
 		}
 	}
-	out := []string{"gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan"}
+	out := []string{"gitlab.com/gorib/whisk/scan"}
+	if wantBody || wantStrconv {
+		out = append(out, "gitlab.com/gorib/failure")
+	}
 	if wantBody {
 		out = append(out, format.Import)
 	}

@@ -137,12 +137,14 @@ func structContributes(s shared.StructInfo) bool {
 }
 
 // neededImports inspects the generated code to decide which imports the
-// final file actually references. validate is always implied (the section
-// is only emitted when at least one struct contributes).
+// final file actually references. errors is always implied (every emitted
+// Validate ends in errors.Join), but validate is gated on use: a struct can
+// contribute (carry a validate tag) yet emit no validate.* code — e.g.
+// required on a non-pointer struct value, which has no zero check.
 func neededImports(generatedCode string, hasUserChecks bool, userChecksImport string) []string {
-	out := []string{
-		"errors",
-		"gitlab.com/gorib/whisk/validate",
+	out := []string{"errors"}
+	if strings.Contains(generatedCode, "validate.") {
+		out = append(out, "gitlab.com/gorib/whisk/validate")
 	}
 	if strings.Contains(generatedCode, "fmt.Sprintf") {
 		out = append(out, "fmt")

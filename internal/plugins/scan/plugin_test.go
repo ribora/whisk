@@ -56,7 +56,7 @@ type Empty struct{}
 
 	must(t, string(sec.Code), "func (s *Empty) Parse(src scan.Source) error")
 	mustNot(t, string(sec.Code), "src.Body()", "json.Unmarshal(body, s)")
-	wantImports(t, sec.Imports, "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan")
+	wantImports(t, sec.Imports, "gitlab.com/gorib/whisk/scan")
 }
 
 func TestGenerate_scalarLookups(t *testing.T) {
@@ -94,7 +94,7 @@ type Req struct {
 		"strings.TrimSpace",
 		"make([]string, 0, len(vs))",
 	)
-	wantImports(t, sec.Imports, "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan", "strings")
+	wantImports(t, sec.Imports, "gitlab.com/gorib/whisk/scan", "strings")
 }
 
 func TestGenerate_sliceCommaSplit(t *testing.T) {
