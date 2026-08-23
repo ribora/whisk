@@ -4,21 +4,26 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"uuid"
 
-	"github.com/google/uuid"
+	guid "github.com/google/uuid"
 )
 
-func IsUuid[Uuid ~string | uuid.UUID | *uuid.UUID](u Uuid, args ...string) (_ bool, err error) {
-	var id uuid.UUID
+func IsUuid[Uuid ~string | uuid.UUID | *uuid.UUID | guid.UUID | *guid.UUID](u Uuid, args ...string) (_ bool, err error) {
+	var id guid.UUID
 	switch e := any(u).(type) {
-	case uuid.UUID:
+	case guid.UUID:
 		id = e
-	case *uuid.UUID:
+	case *guid.UUID:
 		id = *e
+	case uuid.UUID:
+		id = guid.UUID(e)
+	case *uuid.UUID:
+		id = guid.UUID(*e)
 	case string:
-		id, err = uuid.Parse(e)
+		id, err = guid.Parse(e)
 	default:
-		id, err = uuid.Parse(reflect.ValueOf(e).String())
+		id, err = guid.Parse(reflect.ValueOf(e).String())
 	}
 	if err != nil {
 		return false, err
@@ -28,7 +33,7 @@ func IsUuid[Uuid ~string | uuid.UUID | *uuid.UUID](u Uuid, args ...string) (_ bo
 		if err != nil {
 			return false, err
 		}
-		if id.Version() != uuid.Version(version) {
+		if id.Version() != guid.Version(version) {
 			return false, fmt.Errorf("uuid version not match: expected %d but %d given", version, id.Version())
 		}
 	}
