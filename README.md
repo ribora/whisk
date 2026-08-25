@@ -1,9 +1,14 @@
 # whisk
 
-Compile-time codegen for HTTP request binding **and** validation. Reads struct
-tags, emits straight-line Go — `Parse(src scan.Source) error` to populate a
-struct from the request, and `Validate() error` to check it. No runtime
-reflection; the generated code is plain Go with direct field access.
+Compile-time codegen for input binding **and** validation. Reads struct tags,
+emits straight-line Go — `Parse(src scan.Source) error` to populate a struct
+from a source, and `Validate() error` to check it. No runtime reflection; the
+generated code is plain Go with direct field access.
+
+The source is an interface, not a transport. An HTTP request, an AMQP delivery
+and a byte slice all satisfy it, and the adapter decides what a scope like
+`query` or `routing-key` means — whisk emits the lookup verbatim and hardcodes
+nothing.
 
 Binding and validation are independent plugins behind one orchestrator, so a
 struct can use either, both, or neither — a single `//go:generate` directive
@@ -56,6 +61,9 @@ mux.Post("/login", server.Bind(func(ctx context.Context, req *model.LoginRequest
 req, err := server.Into[model.LoginRequest](server.From(r))
 if err != nil { return err }
 ```
+
+Any other source binds the same way — `scan.Into[T](src)` over an `amqp.Source`
+in a queue consumer, or over `scan.FromBytes(b)` for a file or a test fixture.
 
 ## Binding tags — `scan:`
 
