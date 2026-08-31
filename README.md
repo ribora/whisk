@@ -65,6 +65,50 @@ if err != nil { return err }
 Any other source binds the same way — `scan.Into[T](src)` over an `amqp.Source`
 in a queue consumer, or over `scan.FromBytes(b)` for a file or a test fixture.
 
+## Why not an existing library
+
+The field is crowded, and most of it is a better fit than whisk for some job.
+
+**`huma`** is the closest neighbour: code-first, derives OpenAPI from Go types,
+validates requests. It does that at run time through reflection, is HTTP-only,
+and owns the handler signature and router integration. If you want one package
+to hold routing, docs and validation together, and reflection on the request
+path is fine, huma is less machinery than assembling this yourself.
+
+**`go-playground/validator`** is validation only, at run time, by reflection.
+whisk's tag syntax is a deliberate subset of it, so rules port directly — it is
+the dialect this borrows, not a competitor. Reach for it when you want no
+codegen step and no binding.
+
+**`ogen` and `oapi-codegen`** run the other direction: an OpenAPI document is
+the source of truth, and types, routing, decoding and schema-derived validation
+are generated from it. If your spec is written first and reviewed by people who
+do not read Go, that is the correct arrangement and whisk is the wrong tool.
+
+**`ShouldBind` in gin / echo / fiber** binds by reflection from a type tied to
+the HTTP request, with validation as a separate step.
+
+Two axes sort these apart — where the truth lives, and when the work happens:
+
+|  | at run time | at generate time |
+|---|---|---|
+| **spec-first** | — | `ogen`, `oapi-codegen` |
+| **code-first** | `huma`, `go-playground/validator`, `ShouldBind` | **whisk** |
+
+The generated half gets a misspelled tag as a build failure rather than a
+run-time panic or a silently skipped check, and leaves straight-line Go in the
+repository — so "what happens to this field" is answered by reading a file, not
+a library's internals. The code-first half keeps Go as the source of truth.
+
+**And one thing none of them do: the source is an interface, not a transport.**
+`Parse` takes a `scan.Source`, and the scope in a tag is an opaque string the
+adapter interprets. One struct binds from an HTTP request, an AMQP delivery, or
+`scan.FromBytes(b)` in a test, with no separate decoding layer per transport.
+
+Neither is free: you own a `go generate` step, generated files in the tree, and
+one more tag dialect whose agreement with `go-playground/validator` is checked
+by these tests rather than by upstream's.
+
 ## Binding tags — `scan:`
 
 Body is **always** unmarshalled (JSON by default). Scoped lookups override
@@ -103,8 +147,34 @@ too, add the stdlib `json:"-"` / `xml:"-"`.
 | `string` | direct |
 | `int*`, `uint*`, `float*` | `strconv.Parse*` |
 | `bool` | `strconv.ParseBool` |
+| a named type over any of the above | same call, then a conversion — `type Page int` lands as `Page(parsed)` |
+| a type declaring `UnmarshalText([]byte) error` | the raw value is handed to it — `uuid.UUID`, `time.Time`, your own ids |
 | `[]T` where T is one of the above | per-element |
 | anything else | `// TODO whisk:` marker — handle in the `parse(src)` hook |
+
+For basic kinds the call is picked by the **underlying** kind and the conversion
+names the declared type, so `type Status string` and `[]Status` bind without a
+hook.
+
+`encoding.TextUnmarshaler` **wins over that**: a type that declares a text
+decoder means to be built through it, and converting around it would silently
+drop whatever it normalises. Pointer fields are allocated before the call, so
+`*uuid.UUID` stays nil when the parameter is absent. The decoder's error is
+wrapped as `scan.ErrPayload` with the field name, like a `strconv` failure.
+
+`json.Unmarshaler` is deliberately **not** consulted for scoped values: a query
+parameter is a bare string, not a JSON document, so a type implementing only
+`UnmarshalJSON` would need `?id="abc"` to work and fail on `?id=abc`. In the
+**body** those types bind normally — `json.Unmarshal` honours both interfaces
+there.
+
+> **Migrating a field to a decoding type changes its status code.** A bad value
+> in `ID string` with `validate:"uuid"` fails validation, which the error
+> renderer answers with **422**. The same value in `ID uuid.UUID` fails in
+> `Parse`, wrapped as `scan.ErrPayload`, which is **400**. Both are defensible —
+> one value is a valid string that breaks a rule, the other cannot be held by
+> the field at all — but the switch is silent, and a client branching on the
+> code will notice. Change the two together, or keep the string.
 
 Conversion failures wrap `scan.ErrPayload` with the field name.
 
@@ -112,8 +182,10 @@ Conversion failures wrap `scan.ErrPayload` with the field name.
 
 `scan:"embed"` marks a **named struct field** whose type has its own `Parse`,
 and the generated parent `Parse` delegates to it (`s.Field.Parse(src)`) instead
-of duplicating the field-by-field logic. Value and pointer fields are both
-supported (pointers are nil-guarded).
+of duplicating the field-by-field logic. The field must be a **value**: a
+pointer embed is a codegen error, since allocating it used to depend on the
+parent's body unmarshal and broke once the body became conditional. Allocate
+explicitly in a `parse(src)` hook if you need one.
 
 ```go
 type Pagination struct {
@@ -452,5 +524,8 @@ Intentional, not pending TODOs:
   random order; sort by path if order matters.
 - **`unique=Field`** takes a single direct field name; composite keys go in
   `validate()`.
-- **Non-scalar scoped fields** emit a `// TODO whisk:` marker — convert them in
-  a `parse(src)` hook.
+- **Scoped fields that are neither a basic kind nor a `TextUnmarshaler`** emit a
+  `// TODO whisk:` marker — convert them in a `parse(src)` hook. A struct with
+  no text decoder is the usual case.
+- **`[]*T` from a scope** is not bound even when `*T` decodes text; use a value
+  slice, or the hook.

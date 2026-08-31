@@ -55,7 +55,7 @@ func (s *Login) Validate() error {
 	}
 	if s.Token == "" {
 		errs = append(errs, &validate.ValidationError{
-			Segments: validate.Path{validate.NewFieldSegment("go", "Token")},
+			Segments: validate.Path{validate.NewFieldSegment("go", "Token", "json", "token")},
 			Tag:      "required",
 			Kind:     "str",
 		})
@@ -63,7 +63,7 @@ func (s *Login) Validate() error {
 	if s.Token != "" {
 		if utf8.RuneCountInString(s.Token) < 8 {
 			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "Token")},
+				Segments: validate.Path{validate.NewFieldSegment("go", "Token", "json", "token")},
 				Tag:      "min",
 				Value:    "8",
 				Kind:     "str",
@@ -89,7 +89,7 @@ func (s *Login) Validate() error {
 	}
 	if s.Password == "" {
 		errs = append(errs, &validate.ValidationError{
-			Segments: validate.Path{validate.NewFieldSegment("go", "Password")},
+			Segments: validate.Path{validate.NewFieldSegment("go", "Password", "json", "password")},
 			Tag:      "required",
 			Kind:     "str",
 		})
@@ -97,7 +97,7 @@ func (s *Login) Validate() error {
 	if s.Password != "" {
 		if utf8.RuneCountInString(s.Password) < 8 {
 			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "Password")},
+				Segments: validate.Path{validate.NewFieldSegment("go", "Password", "json", "password")},
 				Tag:      "min",
 				Value:    "8",
 				Kind:     "str",
@@ -105,7 +105,7 @@ func (s *Login) Validate() error {
 		}
 		if utf8.RuneCountInString(s.Password) > 64 {
 			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "Password")},
+				Segments: validate.Path{validate.NewFieldSegment("go", "Password", "json", "password")},
 				Tag:      "max",
 				Value:    "64",
 				Kind:     "str",
@@ -117,7 +117,7 @@ func (s *Login) Validate() error {
 		for _, v := range s.Tags {
 			if seenTags[v] {
 				errs = append(errs, &validate.ValidationError{
-					Segments: validate.Path{validate.NewFieldSegment("go", "Tags")},
+					Segments: validate.Path{validate.NewFieldSegment("go", "Tags", "json", "tags")},
 					Tag:      "unique",
 					Kind:     "slice",
 				})
@@ -128,7 +128,7 @@ func (s *Login) Validate() error {
 	if s.Page != 0 {
 		if s.Page < 1 {
 			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "Page")},
+				Segments: validate.Path{validate.NewFieldSegment("go", "Page", "json", "page")},
 				Tag:      "gte",
 				Value:    "1",
 				Kind:     "value",
@@ -136,7 +136,7 @@ func (s *Login) Validate() error {
 		}
 		if s.Page > 100 {
 			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "Page")},
+				Segments: validate.Path{validate.NewFieldSegment("go", "Page", "json", "page")},
 				Tag:      "lte",
 				Value:    "100",
 				Kind:     "value",

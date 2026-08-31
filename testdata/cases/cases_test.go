@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"flag"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -38,6 +39,8 @@ type caseSpec struct {
 
 var successCases = []caseSpec{
 	{dir: "basic", format: scan.FormatJSON},
+	{dir: "named_scalars", format: scan.FormatJSON},
+	{dir: "text_unmarshal", format: scan.FormatJSON},
 	{dir: "embed", format: scan.FormatJSON},
 	{dir: "dive_slice", format: scan.FormatJSON},
 	{dir: "hook_only", format: scan.FormatJSON},
@@ -68,6 +71,7 @@ type errorCase struct {
 var errorCases = []errorCase{
 	{dir: "err_bordering", errContains: `not marked scan:"embed"`},
 	{dir: "err_bad_tag", errContains: "unsupported validator tag"},
+	{dir: "err_pointer_embed", errContains: "on a pointer field"},
 }
 
 func TestSuccess(t *testing.T) {
@@ -142,6 +146,44 @@ func TestErrors(t *testing.T) {
 				t.Errorf("error mismatch: got %v, want substring %q", err, c.errContains)
 			}
 		})
+	}
+}
+
+// Cases carrying their own _test.go: compiling proves the imports, running
+// proves the code. A nil receiver in a generated loop compiles fine and only
+// fails when something calls it.
+var runnableCases = []string{
+	"named_scalars",
+	"text_unmarshal",
+}
+
+// TestGoldensRun executes those cases. The go tool skips testdata for wildcard
+// patterns, so the import paths are named explicitly.
+func TestGoldensRun(t *testing.T) {
+	args := []string{"test", "-count=1"}
+	for _, dir := range runnableCases {
+		args = append(args, "gitlab.com/gorib/whisk/testdata/cases/"+dir)
+	}
+	cmd := exec.Command("go", args...)
+	cmd.Dir = caseDir(t, "")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("running generated cases: %v\n%s", err, out)
+	}
+}
+
+// TestSuccess compares bytes and never builds what it generated, so a wrong
+// import list passes it and still emits a file that does not compile — which is
+// how named-type conversions once reached a golden without "strconv". The go
+// tool skips testdata for wildcard patterns, hence the explicit import paths.
+func TestGoldensCompile(t *testing.T) {
+	args := []string{"build"}
+	for _, c := range successCases {
+		args = append(args, "gitlab.com/gorib/whisk/testdata/cases/"+c.dir)
+	}
+	cmd := exec.Command("go", args...)
+	cmd.Dir = caseDir(t, "")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("compiling goldens: %v\n%s", err, out)
 	}
 }
 

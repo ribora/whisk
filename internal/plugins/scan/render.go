@@ -58,8 +58,34 @@ func renderField(sb *strings.Builder, f sourceField) {
 
 func renderScalarField(sb *strings.Builder, f sourceField) {
 	fmt.Fprintf(sb, "\tif v := src.Lookup(%q, %q); v != \"\" {\n", f.Scope, f.Key)
-	emitScalarConvert(sb, "v", f.Type, "s."+f.Name, f.Name, "\t\t")
+	if f.Text {
+		emitTextUnmarshal(sb, "v", f, "\t\t")
+	} else {
+		emitScalarConvert(sb, "v", f.Type, f.Kind, "s."+f.Name, f.Name, "\t\t")
+	}
 	sb.WriteString("\t}\n")
+}
+
+// emitTextUnmarshal hands the raw scope value to the type's own decoder. The
+// receiver is addressable because s is a pointer, so a value field needs no
+// temporary; a pointer field is allocated first.
+func emitTextUnmarshal(sb *strings.Builder, input string, f sourceField, ind string) {
+	if f.Pointee != "" {
+		fmt.Fprintf(sb, "%sif s.%s == nil {\n", ind, f.Name)
+		fmt.Fprintf(sb, "%s\ts.%s = new(%s)\n", ind, f.Name, f.Pointee)
+		fmt.Fprintf(sb, "%s}\n", ind)
+	}
+	fmt.Fprintf(sb, "%sif err := s.%s.UnmarshalText([]byte(%s)); err != nil {\n", ind, f.Name, input)
+	fmt.Fprintf(sb, "%s\treturn failure.Wrap(\"%%w: %s: %%w\", scan.ErrPayload, err)\n", ind, f.Name)
+	fmt.Fprintf(sb, "%s}\n", ind)
+}
+
+func emitTextAppend(sb *strings.Builder, input string, f sourceField, ind string) {
+	fmt.Fprintf(sb, "%svar elem %s\n", ind, f.ElemType)
+	fmt.Fprintf(sb, "%sif err := elem.UnmarshalText([]byte(%s)); err != nil {\n", ind, input)
+	fmt.Fprintf(sb, "%s\treturn failure.Wrap(\"%%w: %s: %%w\", scan.ErrPayload, err)\n", ind, f.Name)
+	fmt.Fprintf(sb, "%s}\n", ind)
+	fmt.Fprintf(sb, "%ss.%s = append(s.%s, elem)\n", ind, f.Name, f.Name)
 }
 
 func renderSliceField(sb *strings.Builder, f sourceField) {
@@ -67,7 +93,11 @@ func renderSliceField(sb *strings.Builder, f sourceField) {
 		fmt.Fprintf(sb, "\tif vs := src.LookupAll(%q, %q); len(vs) > 0 {\n", f.Scope, f.Key)
 		fmt.Fprintf(sb, "\t\ts.%s = make([]%s, 0, len(vs))\n", f.Name, f.ElemType)
 		sb.WriteString("\t\tfor _, v := range vs {\n\t\t\tv = strings.TrimSpace(v)\n")
-		emitSliceAppend(sb, "v", f.ElemType, "s."+f.Name, f.Name, "\t\t\t")
+		if f.ElemText {
+			emitTextAppend(sb, "v", f, "\t\t\t")
+		} else {
+			emitSliceAppend(sb, "v", f.ElemType, f.ElemKind, "s."+f.Name, f.Name, "\t\t\t")
+		}
 		sb.WriteString("\t\t}\n\t}\n")
 		return
 	}
@@ -79,14 +109,18 @@ func renderSliceField(sb *strings.Builder, f sourceField) {
 	fmt.Fprintf(sb, "\t\ts.%s = make([]%s, 0, len(parts))\n", f.Name, f.ElemType)
 	sb.WriteString("\t\tfor _, p := range parts {\n\t\t\tp = strings.TrimSpace(p)\n")
 	sb.WriteString("\t\t\tif p == \"\" {\n\t\t\t\tcontinue\n\t\t\t}\n")
-	emitSliceAppend(sb, "p", f.ElemType, "s."+f.Name, f.Name, "\t\t\t")
+	if f.ElemText {
+		emitTextAppend(sb, "p", f, "\t\t\t")
+	} else {
+		emitSliceAppend(sb, "p", f.ElemType, f.ElemKind, "s."+f.Name, f.Name, "\t\t\t")
+	}
 	sb.WriteString("\t\t}\n\t}\n")
 }
 
-func emitScalarConvert(sb *strings.Builder, input, typ, dst, name, ind string) {
-	switch typ {
+func emitScalarConvert(sb *strings.Builder, input, typ, kind, dst, name, ind string) {
+	switch kind {
 	case "string":
-		fmt.Fprintf(sb, "%s%s = %s\n", ind, dst, input)
+		fmt.Fprintf(sb, "%s%s = %s\n", ind, dst, convert(typ, kind, input))
 	case "int", "int8", "int16", "int32", "int64":
 		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseInt(%s, 10, %d)\n", ind, input, bitSize(typ))
 		emitWrapErr(sb, name, ind)
@@ -102,17 +136,17 @@ func emitScalarConvert(sb *strings.Builder, input, typ, dst, name, ind string) {
 	case "bool":
 		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseBool(%s)\n", ind, input)
 		emitWrapErr(sb, name, ind)
-		fmt.Fprintf(sb, "%s%s = parsed\n", ind, dst)
+		fmt.Fprintf(sb, "%s%s = %s\n", ind, dst, convert(typ, kind, "parsed"))
 	default:
 		fmt.Fprintf(sb, "%s// TODO whisk: cannot convert string to %s for %s — handle in parse(src) hook\n", ind, typ, name)
 		fmt.Fprintf(sb, "%s_ = %s\n", ind, input)
 	}
 }
 
-func emitSliceAppend(sb *strings.Builder, input, elem, dst, name, ind string) {
-	switch elem {
+func emitSliceAppend(sb *strings.Builder, input, elem, kind, dst, name, ind string) {
+	switch kind {
 	case "string":
-		fmt.Fprintf(sb, "%s%s = append(%s, %s)\n", ind, dst, dst, input)
+		fmt.Fprintf(sb, "%s%s = append(%s, %s)\n", ind, dst, dst, convert(elem, kind, input))
 	case "int", "int8", "int16", "int32", "int64":
 		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseInt(%s, 10, %d)\n", ind, input, bitSize(elem))
 		emitWrapErr(sb, name, ind)
@@ -128,11 +162,21 @@ func emitSliceAppend(sb *strings.Builder, input, elem, dst, name, ind string) {
 	case "bool":
 		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseBool(%s)\n", ind, input)
 		emitWrapErr(sb, name, ind)
-		fmt.Fprintf(sb, "%s%s = append(%s, parsed)\n", ind, dst, dst)
+		fmt.Fprintf(sb, "%s%s = append(%s, %s)\n", ind, dst, dst, convert(elem, kind, "parsed"))
 	default:
 		fmt.Fprintf(sb, "%s// TODO whisk: cannot convert string to %s for %s element — handle in parse(src) hook\n", ind, elem, name)
 		fmt.Fprintf(sb, "%s_ = %s\n", ind, input)
 	}
+}
+
+// convert wraps expr in a conversion when the declared type is a named type
+// over kind — Status(v) — and leaves it bare when they are the same, so plain
+// string and bool fields keep assigning directly.
+func convert(typ, kind, expr string) string {
+	if typ == kind {
+		return expr
+	}
+	return typ + "(" + expr + ")"
 }
 
 func emitWrapErr(sb *strings.Builder, name, ind string) {
@@ -164,23 +208,33 @@ func neededImports(lexems []lexem, format Format) []string {
 	wantStrconv := false
 	wantStrings := false
 	wantBody := false
+	wantWrap := false
+	var typeRefs []string
+	seenRef := map[string]bool{}
 	for _, l := range lexems {
 		wantBody = wantBody || l.HasBodyFields
 		for _, f := range l.Fields {
+			wantWrap = wantWrap || f.Text || f.ElemText
+			for _, ref := range f.Refs {
+				if !seenRef[ref] {
+					seenRef[ref] = true
+					typeRefs = append(typeRefs, ref)
+				}
+			}
 			if f.ElemType != "" {
 				wantStrings = true
-				if needsStrconv(f.ElemType) {
+				if needsStrconv(f.ElemKind) {
 					wantStrconv = true
 				}
 				continue
 			}
-			if needsStrconv(f.Type) {
+			if needsStrconv(f.Kind) {
 				wantStrconv = true
 			}
 		}
 	}
 	out := []string{"gitlab.com/gorib/whisk/scan"}
-	if wantBody || wantStrconv {
+	if wantBody || wantStrconv || wantWrap {
 		out = append(out, "gitlab.com/gorib/failure")
 	}
 	if wantBody {
@@ -192,11 +246,14 @@ func neededImports(lexems []lexem, format Format) []string {
 	if wantStrings {
 		out = append(out, "strings")
 	}
-	return out
+	return append(out, typeRefs...)
 }
 
-func needsStrconv(typ string) bool {
-	switch typ {
+// needsStrconv takes an underlying basic kind, never a declared type name: a
+// named type over int still parses with strconv, and asking about "Page" would
+// answer no and leave the import out.
+func needsStrconv(kind string) bool {
+	switch kind {
 	case "int", "int8", "int16", "int32", "int64",
 		"uint", "uint8", "uint16", "uint32", "uint64",
 		"float32", "float64", "bool":

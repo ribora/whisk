@@ -55,12 +55,29 @@ type delegate struct {
 }
 
 type sourceField struct {
-	Name     string
-	Scope    string
-	Key      string
-	Type     string // Go type as text — drives strconv.ParseInt/ParseBool/... selection
+	Name  string
+	Scope string
+	Key   string
+	// Type is the declared type as text and goes into the conversion the
+	// generated code performs; Kind is its underlying basic type and is what
+	// selects strconv.ParseInt/ParseBool/... So `type Page int` converts with
+	// strconv.ParseInt and lands as Page(parsed).
+	Type     string
+	Kind     string
 	ElemType string // populated for []T fields
-	Repeated bool   // true ⇒ emit src.LookupAll, false ⇒ comma-split src.Lookup
+	ElemKind string
+	Repeated bool // true ⇒ emit src.LookupAll, false ⇒ comma-split src.Lookup
+	// Text is set when the type decodes itself from text. It wins over Kind:
+	// a type that declares UnmarshalText means to be built through it, and
+	// converting around it would silently drop whatever it normalises.
+	// Pointee is what a pointer field allocates before the call.
+	Text     bool
+	Pointee  string
+	ElemText bool
+	// Refs are import paths of types the emitted code spells out — a make, a
+	// new, or a conversion. Only those: an import Go cannot see used is a
+	// compile error, so a superset here is as broken as a missing one.
+	Refs []string
 }
 
 func walk(s shared.StructInfo) (lexem, []string, error) {
@@ -104,7 +121,7 @@ func walk(s shared.StructInfo) (lexem, []string, error) {
 			}
 			lex.Delegates = append(lex.Delegates, delegate{Name: f.Name})
 		default:
-			sf, err := parseScopedTag(s.Name, f, raw)
+			sf, err := parseScopedTag(s.Name, s.PkgPath, f, raw)
 			if err != nil {
 				return lexem{}, nil, err
 			}
@@ -116,7 +133,7 @@ func walk(s shared.StructInfo) (lexem, []string, error) {
 
 // parseScopedTag parses `<scope>=<key>[,opt1[,opt2...]]`. The only option
 // currently recognised is `repeated` (slice fields → src.LookupAll).
-func parseScopedTag(structName string, f shared.FieldInfo, raw string) (sourceField, error) {
+func parseScopedTag(structName, pkgPath string, f shared.FieldInfo, raw string) (sourceField, error) {
 	eq := strings.Index(raw, "=")
 	if eq < 0 {
 		return sourceField{}, fmt.Errorf("%s.%s: scan tag %q must be \"-\", \"embed\", or \"<scope>=<key>[,opt...]\"", structName, f.Name, raw)
@@ -136,8 +153,23 @@ func parseScopedTag(structName string, f shared.FieldInfo, raw string) (sourceFi
 		Scope:    scope,
 		Key:      key,
 		Type:     f.Type,
+		Kind:     basicKind(f.TypeRef),
 		ElemType: f.ElemType,
+		Text:     decodesText(f.TypeRef),
 	}
+	if f.ElemType != "" {
+		elem := sliceElem(f.TypeRef)
+		sf.ElemKind = basicKind(elem)
+		// A pointer element would need allocating per iteration; `var elem *T`
+		// followed by elem.UnmarshalText compiles and then dereferences nil, so
+		// pointer elements fall through to the marker instead.
+		_, elemIsPointer := elem.(*types.Pointer)
+		sf.ElemText = !elemIsPointer && decodesText(elem)
+	}
+	if sf.Text && f.IsPointer {
+		sf.Pointee = strings.TrimPrefix(f.Type, "*")
+	}
+	sf.Refs = spelledOutTypes(sf, f, pkgPath)
 	for _, opt := range parts[1:] {
 		opt = strings.TrimSpace(opt)
 		switch opt {
@@ -153,6 +185,96 @@ func parseScopedTag(structName string, f shared.FieldInfo, raw string) (sourceFi
 		return sourceField{}, fmt.Errorf("%s.%s: scan option \"repeated\" requires a slice field, got %s", structName, f.Name, f.Type)
 	}
 	return sf, nil
+}
+
+// basicKind names t's underlying basic type — "string", "int", "bool" — which
+// is what a strconv call is chosen by. Empty when the underlying type is not
+// basic, and then the field falls through to the TODO marker as before.
+func basicKind(t types.Type) string {
+	if t == nil {
+		return ""
+	}
+	basic, ok := t.Underlying().(*types.Basic)
+	if !ok {
+		return ""
+	}
+	return basic.Name()
+}
+
+// spelledOutTypes lists the packages of types the emitter writes literally:
+// the element type in a make and a var, the pointee in a new, and the declared
+// type in a conversion. A scalar decoded through UnmarshalText names nothing —
+// the call goes through the field — so it contributes no import.
+func spelledOutTypes(sf sourceField, f shared.FieldInfo, pkgPath string) []string {
+	var refs []string
+	add := func(t types.Type) {
+		named, ok := shared.UnwrapNamed(t)
+		if !ok {
+			return
+		}
+		pkg := named.Obj().Pkg()
+		if pkg == nil || pkg.Path() == pkgPath {
+			return
+		}
+		refs = append(refs, pkg.Path())
+	}
+
+	switch {
+	case sf.ElemType != "":
+		add(sliceElem(f.TypeRef))
+	case sf.Pointee != "":
+		add(f.TypeRef)
+	case !sf.Text && sf.Type != sf.Kind:
+		add(f.TypeRef)
+	}
+	return refs
+}
+
+// decodesText reports whether a value of t can be built from a text scope by
+// calling UnmarshalText on it. The method is virtually always on the pointer
+// receiver, so a value field is asked about *T; a pointer field is asked about
+// itself and allocates before the call.
+func decodesText(t types.Type) bool {
+	if t == nil {
+		return false
+	}
+	if _, isPtr := t.(*types.Pointer); !isPtr {
+		t = types.NewPointer(t)
+	}
+	ms := types.NewMethodSet(t)
+	for i := range ms.Len() {
+		fn, ok := ms.At(i).Obj().(*types.Func)
+		if !ok || fn.Name() != "UnmarshalText" {
+			continue
+		}
+		sig, ok := fn.Type().(*types.Signature)
+		if !ok || sig.Params().Len() != 1 || sig.Results().Len() != 1 {
+			continue
+		}
+		slice, ok := sig.Params().At(0).Type().(*types.Slice)
+		if !ok {
+			continue
+		}
+		basic, ok := slice.Elem().(*types.Basic)
+		if !ok || basic.Kind() != types.Uint8 {
+			continue
+		}
+		return sig.Results().At(0).Type().String() == "error"
+	}
+	return false
+}
+
+func sliceElem(t types.Type) types.Type {
+	if t == nil {
+		return nil
+	}
+	switch u := t.Underlying().(type) {
+	case *types.Slice:
+		return u.Elem()
+	case *types.Array:
+		return u.Elem()
+	}
+	return nil
 }
 
 func isNamedStruct(f shared.FieldInfo) bool {
