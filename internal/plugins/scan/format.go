@@ -1,14 +1,15 @@
 package scan
 
-// Format selects the body decoder. Only the generated body-unmarshal block
-// uses it; scoped lookups are format-agnostic.
+import "gitlab.com/gorib/whisk/internal/generator"
+
+// Only the body unmarshal uses this; a scoped lookup is format-agnostic.
 type Format struct {
 	Tag       string // struct-tag key for the format; also drives validate path-segment names
-	Import    string
+	Import    generator.Import
 	Unmarshal string // call expression emitted verbatim, e.g. "json.Unmarshal"
 }
 
 var (
-	FormatJSON = Format{Tag: "json", Import: "encoding/json", Unmarshal: "json.Unmarshal"}
-	FormatXML  = Format{Tag: "xml", Import: "encoding/xml", Unmarshal: "xml.Unmarshal"}
+	FormatJSON = Format{Tag: "json", Import: generator.Import{Path: "encoding/json"}, Unmarshal: "json.Unmarshal"}
+	FormatXML  = Format{Tag: "xml", Import: generator.Import{Path: "encoding/xml"}, Unmarshal: "xml.Unmarshal"}
 )

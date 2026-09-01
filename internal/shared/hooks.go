@@ -5,13 +5,9 @@ import (
 	"go/types"
 )
 
-// ownHookSignature reports whether *T defines `name(...) error` directly.
-// paramType is the expected single parameter as types.Type.String() (e.g.
-// "gitlab.com/gorib/whisk/scan.Source"), or "" for a parameterless hook.
-//
-// Methods promoted from an embed (len(Index) > 1) are skipped: the embed's
-// own generated code already calls its hook, so picking it up here would
-// double-call it.
+// paramType is the single parameter as types.Type.String(), or "" for none.
+// A method promoted from an embed is skipped: the embed's own generated code
+// calls that hook already.
 func ownHookSignature(named *types.Named, name, paramType string) (bool, error) {
 	ms := types.NewMethodSet(types.NewPointer(named))
 	for i := 0; i < ms.Len(); i++ {
@@ -51,15 +47,12 @@ func checkHookSig(sig *types.Signature, structName, hookName, paramType string) 
 	return nil
 }
 
-// HasOwnValidateMethod reports whether *named defines `Validate() error`.
-// Promoted-from-embed methods count: a value embedding such a type really
-// does carry a usable Validate at the final compile.
+// A promoted method counts here: a value embedding such a type really does
+// carry a usable Validate at the final compile.
 func HasOwnValidateMethod(named *types.Named) bool {
 	return hasMethodReturningError(named, "Validate", 0)
 }
 
-// HasOwnValidateHook reports whether *named defines its own `validate() error`
-// (not promoted from an embed).
 func HasOwnValidateHook(named *types.Named) bool {
 	ok, _ := ownHookSignature(named, "validate", "")
 	return ok

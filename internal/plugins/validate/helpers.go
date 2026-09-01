@@ -6,9 +6,7 @@ import (
 	"strings"
 )
 
-// fieldSegmentCode builds the `validate.NewFieldSegment(...)` call expression
-// for a field, listing its Go name and any extra tag-based aliases (json,
-// xml, etc.). Names are sorted by key so output is deterministic.
+// Sorted by key: the output is compared against a golden.
 func fieldSegmentCode(f field, extractTags []string) string {
 	if f.Name == "" {
 		return ""
@@ -34,13 +32,8 @@ func fieldSegmentCode(f field, extractTags []string) string {
 	return "validate.NewFieldSegment(" + strings.Join(pairs, ", ") + ")"
 }
 
-// isTimeValue reports whether v looks like a time literal accepted by
-// validate.IsTimeMin / IsTimeMax / IsTimeGT / IsTimeLT.
-//
-// Recognised forms:
-//   - "now"
-//   - duration suffixes: "d", "days", "h", "m" (e.g. "7d", "-1h", "30days")
-//   - ISO date "YYYY-MM-DD"
+// "now", a duration such as "7d" or "-1h", or an ISO date — the forms
+// validate.IsTimeMin and friends accept.
 func isTimeValue(v string) bool {
 	if v == "now" {
 		return true

@@ -9,8 +9,8 @@ type Tag struct {
 	HasValue bool
 }
 
-// parseTags splits a comma-delimited validate string into Tag entries.
-// Empty entries are skipped. Trailing-comma input is tolerated.
+// A trailing or doubled comma is tolerated rather than reported: it is a typo in
+// a tag, not a statement about the field.
 func parseTags(raw string) []Tag {
 	if raw == "" {
 		return nil

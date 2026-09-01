@@ -1,63 +1,76 @@
 package shared
 
 import (
+	"cmp"
 	"fmt"
 	"go/token"
 	"go/types"
 	"path/filepath"
 	"reflect"
-	"sort"
+	"slices"
 
 	"golang.org/x/tools/go/packages"
 )
 
 const BuildTag = "whisk"
 
-// Load returns every top-level struct declared in targetFile, in source order.
+// Source order is part of the contract: the output is compared against a golden.
 func Load(pkgDir, targetFile string) (pkgName string, structs []StructInfo, err error) {
+	pkg, err := loadPackage(pkgDir)
+	if err != nil {
+		return "", nil, err
+	}
+	structs, err = structsDeclaredIn(pkg, absPath(targetFile))
+	if err != nil {
+		return "", nil, err
+	}
+	return pkg.Name, structs, nil
+}
+
+// The build tag hides whisk's own previous output, so a stale generated file cannot
+// block the run that would replace it.
+//
+// Only what is read: Name, PkgPath, Errors, Types, Fset. NeedTypesInfo alone cost
+// 66MB of per-run memory for maps nothing here opens. NeedSyntax is not optional
+// though — without it the loader answers from export data, and an unexported struct
+// is not in export data.
+func loadPackage(pkgDir string) (*packages.Package, error) {
 	cfg := &packages.Config{
-		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
-			packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo |
+		Mode: packages.NeedName | packages.NeedSyntax | packages.NeedTypes |
 			packages.NeedDeps | packages.NeedImports,
 		Dir:        pkgDir,
 		BuildFlags: []string{"-tags", BuildTag},
 	}
 	pkgs, err := packages.Load(cfg, ".")
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 	if len(pkgs) == 0 {
-		return "", nil, fmt.Errorf("no package in %s", pkgDir)
+		return nil, fmt.Errorf("no package in %s", pkgDir)
 	}
 	pkg := pkgs[0]
 	if len(pkg.Errors) > 0 {
-		return "", nil, fmt.Errorf("%s: %v", pkg.PkgPath, pkg.Errors[0])
+		return nil, fmt.Errorf("%s: %v", pkg.PkgPath, pkg.Errors[0])
 	}
 	if pkg.Types == nil {
-		return "", nil, fmt.Errorf("no type info for package %s", pkg.PkgPath)
+		return nil, fmt.Errorf("no type info for package %s", pkg.PkgPath)
 	}
+	return pkg, nil
+}
 
-	targetAbs := absPath(targetFile)
-	pkgPath := pkg.Types.Path()
-
+// The package scope is a map, so the result is ordered by declaration position:
+// generated output is compared against a golden and cannot shuffle between runs.
+func structsDeclaredIn(pkg *packages.Package, targetAbs string) ([]StructInfo, error) {
 	type pending struct {
 		info StructInfo
 		pos  token.Pos
 	}
 	var collected []pending
 
+	pkgPath := pkg.Types.Path()
 	scope := pkg.Types.Scope()
 	for _, name := range scope.Names() {
-		obj := scope.Lookup(name)
-		tn, ok := obj.(*types.TypeName)
-		if !ok {
-			continue
-		}
-		named, ok := tn.Type().(*types.Named)
-		if !ok {
-			continue
-		}
-		st, ok := named.Underlying().(*types.Struct)
+		named, st, ok := namedStruct(scope.Lookup(name))
 		if !ok {
 			continue
 		}
@@ -66,39 +79,61 @@ func Load(pkgDir, targetFile string) (pkgName string, structs []StructInfo, err 
 			continue
 		}
 
-		hasValidate, err := ownHookSignature(named, "validate", "")
+		info, err := describe(name, pkgPath, named, st)
 		if err != nil {
-			return "", nil, err
+			return nil, err
 		}
-		hasParse, err := ownHookSignature(named, "parse", "gitlab.com/gorib/whisk/scan.Source")
-		if err != nil {
-			return "", nil, err
-		}
-
-		collected = append(collected, pending{
-			info: StructInfo{
-				Name:            name,
-				PkgPath:         pkgPath,
-				Fields:          extractFields(st, pkgPath),
-				HasValidateHook: hasValidate,
-				HasParseHook:    hasParse,
-				Named:           named,
-			},
-			pos: declPos,
-		})
+		collected = append(collected, pending{info: info, pos: declPos})
 	}
 
-	sort.Slice(collected, func(i, j int) bool { return collected[i].pos < collected[j].pos })
-	structs = make([]StructInfo, len(collected))
+	slices.SortFunc(collected, func(a, b pending) int { return cmp.Compare(a.pos, b.pos) })
+	structs := make([]StructInfo, len(collected))
 	for i, p := range collected {
 		structs[i] = p.info
 	}
-	return pkg.Name, structs, nil
+	return structs, nil
 }
 
-func extractFields(st *types.Struct, pkgPath string) []FieldInfo {
+func namedStruct(obj types.Object) (*types.Named, *types.Struct, bool) {
+	tn, ok := obj.(*types.TypeName)
+	if !ok {
+		return nil, nil, false
+	}
+	named, ok := tn.Type().(*types.Named)
+	if !ok {
+		return nil, nil, false
+	}
+	st, ok := named.Underlying().(*types.Struct)
+	if !ok {
+		return nil, nil, false
+	}
+	return named, st, true
+}
+
+func describe(name, pkgPath string, named *types.Named, st *types.Struct) (StructInfo, error) {
+	hasValidate, err := ownHookSignature(named, "validate", "")
+	if err != nil {
+		return StructInfo{}, err
+	}
+	hasParse, err := ownHookSignature(named, "parse", "gitlab.com/gorib/whisk/scan.Source")
+	if err != nil {
+		return StructInfo{}, err
+	}
+	return StructInfo{
+		Name:            name,
+		PkgPath:         pkgPath,
+		Fields:          Fields(st, pkgPath),
+		HasValidateHook: hasValidate,
+		HasParseHook:    hasParse,
+		Named:           named,
+	}, nil
+}
+
+// Fields describes the members of st. Both plugins need this, and the validate one
+// used to carry its own copy of the loop.
+func Fields(st *types.Struct, pkgPath string) []FieldInfo {
 	out := make([]FieldInfo, 0, st.NumFields())
-	for i := 0; i < st.NumFields(); i++ {
+	for i := range st.NumFields() {
 		f := st.Field(i)
 		tag := reflect.StructTag(st.Tag(i))
 
@@ -107,7 +142,7 @@ func extractFields(st *types.Struct, pkgPath string) []FieldInfo {
 			out = append(out, FieldInfo{
 				Name:       f.Name(),
 				Tag:        tag,
-				Type:       typeText(f.Type(), pkgPath),
+				Type:       TypeText(f.Type(), pkgPath),
 				TypeRef:    f.Type(),
 				IsEmbedded: true,
 				IsPointer:  isPtr,
@@ -118,32 +153,11 @@ func extractFields(st *types.Struct, pkgPath string) []FieldInfo {
 		fi := FieldInfo{
 			Name:    f.Name(),
 			Tag:     tag,
-			Type:    typeText(f.Type(), pkgPath),
+			Type:    TypeText(f.Type(), pkgPath),
 			TypeRef: f.Type(),
 		}
 
-		switch t := f.Type().(type) {
-		case *types.Pointer:
-			fi.IsPointer = true
-			if s, ok := t.Elem().(*types.Struct); ok {
-				fi.AnonymousType = s
-			}
-		case *types.Struct:
-			fi.AnonymousType = t
-		case *types.Slice:
-			fi.IsSlice = true
-			fi.ElemType = typeText(t.Elem(), pkgPath)
-			fi.AnonymousElem = anonStruct(t.Elem())
-		case *types.Array:
-			fi.IsSlice = true
-			fi.ElemType = typeText(t.Elem(), pkgPath)
-			fi.AnonymousElem = anonStruct(t.Elem())
-		case *types.Map:
-			fi.IsMap = true
-			fi.KeyType = typeText(t.Key(), pkgPath)
-			fi.ElemType = typeText(t.Elem(), pkgPath)
-			fi.AnonymousElem = anonStruct(t.Elem())
-		}
+		DescribeKind(&fi, f.Type(), pkgPath)
 
 		out = append(out, fi)
 	}
@@ -161,45 +175,6 @@ func UnwrapNamed(t types.Type) (*types.Named, bool) {
 			return nil, false
 		}
 	}
-}
-
-func anonStruct(t types.Type) *types.Struct {
-	if ptr, ok := t.(*types.Pointer); ok {
-		if s, ok := ptr.Elem().(*types.Struct); ok {
-			return s
-		}
-		return nil
-	}
-	if s, ok := t.(*types.Struct); ok {
-		return s
-	}
-	return nil
-}
-
-func typeText(t types.Type, currentPkgPath string) string {
-	switch x := t.(type) {
-	case *types.Basic:
-		return x.Name()
-	case *types.Pointer:
-		return "*" + typeText(x.Elem(), currentPkgPath)
-	case *types.Slice:
-		return "[]" + typeText(x.Elem(), currentPkgPath)
-	case *types.Array:
-		return fmt.Sprintf("[%d]%s", x.Len(), typeText(x.Elem(), currentPkgPath))
-	case *types.Map:
-		return "map[" + typeText(x.Key(), currentPkgPath) + "]" + typeText(x.Elem(), currentPkgPath)
-	case *types.Named:
-		obj := x.Obj()
-		if obj.Pkg() == nil || obj.Pkg().Path() == currentPkgPath {
-			return obj.Name()
-		}
-		return obj.Pkg().Name() + "." + obj.Name()
-	case *types.Struct:
-		return "struct"
-	case *types.Interface:
-		return "interface"
-	}
-	return ""
 }
 
 // absPath resolves p against the current working directory. targetFile is

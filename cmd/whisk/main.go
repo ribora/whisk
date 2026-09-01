@@ -98,10 +98,8 @@ func pickTarget(args []string) (string, error) {
 	return "", fmt.Errorf("no input file (set $GOFILE or pass a path)")
 }
 
-// resolveDir maps a project-root-relative dir to its absolute path and import
-// path. Used for both the extractor and storage convention dirs; the import
-// is returned even when the dir is absent — plugins only use it if they
-// actually reference something there.
+// The import path comes back even when the directory is absent: a plugin uses it
+// only once it has found something there.
 func resolveDir(root, module, rel string) (abs, importPath string) {
 	abs = filepath.Join(root, rel)
 	r, err := filepath.Rel(root, abs)

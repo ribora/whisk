@@ -56,7 +56,7 @@ func (s *Auth) Validate() error {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "Token")},
 			Tag:      "required",
-			Kind:     "str",
+			Kind:     validate.KindStr,
 		})
 	}
 	return errors.Join(errs...)
@@ -70,7 +70,7 @@ func (s *Pagination) Validate() error {
 				Segments: validate.Path{validate.NewFieldSegment("go", "Page")},
 				Tag:      "gte",
 				Value:    "1",
-				Kind:     "value",
+				Kind:     validate.KindValue,
 			})
 		}
 	}
@@ -80,7 +80,7 @@ func (s *Pagination) Validate() error {
 				Segments: validate.Path{validate.NewFieldSegment("go", "PerPage")},
 				Tag:      "gte",
 				Value:    "1",
-				Kind:     "value",
+				Kind:     validate.KindValue,
 			})
 		}
 		if s.PerPage > 100 {
@@ -88,7 +88,7 @@ func (s *Pagination) Validate() error {
 				Segments: validate.Path{validate.NewFieldSegment("go", "PerPage")},
 				Tag:      "lte",
 				Value:    "100",
-				Kind:     "value",
+				Kind:     validate.KindValue,
 			})
 		}
 	}
@@ -107,7 +107,7 @@ func (s *ListRequest) Validate() error {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "UserID")},
 			Tag:      "required",
-			Kind:     "str",
+			Kind:     validate.KindStr,
 		})
 	}
 	return errors.Join(errs...)

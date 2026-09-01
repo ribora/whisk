@@ -5,31 +5,31 @@ import (
 	"reflect"
 )
 
-// StructInfo describes a top-level struct in the target file. The parser
-// returns every struct unfiltered; deciding what to emit is each plugin's job.
+// Every struct in the file, unfiltered: what to emit is each plugin's decision.
 type StructInfo struct {
 	Name    string
 	PkgPath string
 	Fields  []FieldInfo
-	// Own hooks only — ones promoted from an embed are excluded, so the outer
-	// type doesn't double-call them.
+	// Own hooks only, or an embed's hook would be called twice.
 	HasValidateHook bool
 	HasParseHook    bool
-	// Named is the struct's type, for plugins that walk the type graph
-	// (e.g. validate's reachability check for nested validation).
+	// For plugins that walk the type graph rather than the field list.
 	Named *types.Named
 }
 
 type FieldInfo struct {
 	Name string
 	Tag  reflect.StructTag
-	// Type qualified against the struct's own package, so same-package named
-	// types are unqualified (e.g. "Inner", not "model.Inner").
+	// Qualified against the struct's own package: "Inner", not "model.Inner".
 	Type    string
 	TypeRef types.Type
 
-	IsPointer  bool
+	IsPointer bool
+	// IsSlice covers arrays too, since ranging over them is the same. IsArray
+	// separates the case where it is not: an array cannot be built with make and
+	// append, so anything that writes a collection has to ask.
 	IsSlice    bool
+	IsArray    bool
 	IsMap      bool
 	IsEmbedded bool
 
@@ -37,8 +37,7 @@ type FieldInfo struct {
 	ElemType string
 	KeyType  string
 
-	// Non-nil only when the field's type is an inline struct literal (Type)
-	// or such a slice/array/map element (Elem).
+	// Set only for an inline struct literal, as the field or as its element.
 	AnonymousType *types.Struct
 	AnonymousElem *types.Struct
 }

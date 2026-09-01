@@ -5,9 +5,6 @@ import (
 	"fmt"
 )
 
-// dispatcher routes one (field, tag) pair to the matching handler. The
-// set of registered handlers is built once per Generate call from the
-// observed tag set.
 type dispatcher struct {
 	handlers map[string]handler
 }
@@ -19,8 +16,7 @@ func newDispatcher(resolutions map[string]tagResolution) *dispatcher {
 	for op := range comparisonOps {
 		d.handlers[op] = comparisonHandler{}
 	}
-	// Dive handler closes over the dispatcher for recursion into element
-	// validations. Constructed last so the closure sees the populated map.
+	// Constructed last: the closure has to see the populated map.
 	dh := diveHandler{}
 	dh.generate = func(buf *bytes.Buffer, f field, ctx context) error {
 		return d.fieldValidation(buf, f, ctx)
@@ -36,15 +32,11 @@ func newDispatcher(resolutions map[string]tagResolution) *dispatcher {
 	return d
 }
 
-// fieldValidation emits the validation for one field, walking through its
-// parsed tags. Required is emitted at the top level (unwrapped); other
-// tags are wrapped in a zero-value guard so they don't fire on empty
-// optional fields.
+// required is emitted unguarded; everything else sits inside a zero-value guard
+// so it stays quiet on an empty optional field.
 func (d *dispatcher) fieldValidation(buf *bytes.Buffer, f field, ctx context) error {
 	if f.IsEmbedded {
-		// Delegate only if the embed actually has a Validate; otherwise
-		// emitting s.Embed.Validate() would reference a method that was
-		// never generated.
+		// Or s.Embed.Validate() would name a method nobody generated.
 		if willHaveValidate(f.TypeRef) {
 			return emitEmbedded(buf, f, ctx)
 		}
@@ -76,13 +68,11 @@ func (d *dispatcher) fieldValidation(buf *bytes.Buffer, f field, ctx context) er
 		if handled {
 			hasValidation = true
 		}
-		// Dive consumes the remaining tags itself (element-level tags),
-		// so we stop iterating once we've handed off to it.
+		// Dive takes the remaining tags itself.
 		if t.Name == "dive" {
 			break
 		}
-		// Required must live outside the zero-value guard — otherwise it
-		// would never fire on empty inputs. Flush immediately and reset.
+		// Inside the guard it would never fire on the empty input it exists for.
 		if handled && t.Name == "required" {
 			buf.Write(inner.Bytes())
 			inner.Reset()
@@ -95,48 +85,38 @@ func (d *dispatcher) fieldValidation(buf *bytes.Buffer, f field, ctx context) er
 	return nil
 }
 
-// wrapValidation wraps the inner block in the appropriate zero-value
-// guard so optional empty fields don't trigger the per-tag checks. Struct
-// fields (anon or auto-dive) emit no guard — the dive handler manages
-// nil/empty internally.
+// A struct field gets no guard: the dive handler deals with nil and empty
+// itself.
 func wrapValidation(outer, inner *bytes.Buffer, f field, prefix string) {
-	if f.AnonymousType != nil && f.IsPointer {
-		fmt.Fprintf(outer, "\tif %s%s != nil {\n", prefix, f.Name)
-		outer.Write(inner.Bytes())
-		outer.WriteString("\t}\n")
-		return
-	}
-	if f.IsStruct || f.AnonymousType != nil {
-		outer.Write(inner.Bytes())
-		return
-	}
 	name := prefix + f.Name
-	switch {
-	case f.IsPointer:
-		fmt.Fprintf(outer, "\tif %s != nil {\n", name)
+	if f.AnonymousType != nil {
+		if f.IsPointer {
+			guarded(outer, inner, name+" != nil")
+			return
+		}
 		outer.Write(inner.Bytes())
-		outer.WriteString("\t}\n")
-	case f.IsSlice || f.IsMap:
-		fmt.Fprintf(outer, "\tif len(%s) > 0 {\n", name)
-		outer.Write(inner.Bytes())
-		outer.WriteString("\t}\n")
-	case f.Type == "string":
-		fmt.Fprintf(outer, "\tif %s != \"\" {\n", name)
-		outer.Write(inner.Bytes())
-		outer.WriteString("\t}\n")
-	case f.Type == "bool":
-		outer.Write(inner.Bytes())
-	default:
-		fmt.Fprintf(outer, "\tif %s != 0 {\n", name)
-		outer.Write(inner.Bytes())
-		outer.WriteString("\t}\n")
+		return
 	}
+	if f.divesIntoValue() {
+		outer.Write(inner.Bytes())
+		return
+	}
+	guard, ok := f.presenceGuard(name)
+	if !ok {
+		outer.Write(inner.Bytes())
+		return
+	}
+	guarded(outer, inner, guard)
 }
 
-// emitEmbedded delegates to the embed's Validate, folding any returned
-// errors into the outer's errs slice. Errors.Join'd sub-errors are
-// unwrapped so path segments stay flat — matching Go's field-promotion
-// semantics.
+func guarded(outer, inner *bytes.Buffer, cond string) {
+	fmt.Fprintf(outer, "\tif %s {\n", cond)
+	outer.Write(inner.Bytes())
+	outer.WriteString("\t}\n")
+}
+
+// Joined sub-errors are unwrapped so the path stays flat, matching how Go
+// promotes the fields themselves.
 func emitEmbedded(buf *bytes.Buffer, f field, ctx context) error {
 	name := ctx.Prefix + f.Name
 	if f.IsPointer {
@@ -152,7 +132,6 @@ func emitEmbedded(buf *bytes.Buffer, f field, ctx context) error {
 	return nil
 }
 
-// emitValidateMethod writes one struct's Validate method into buf.
 func emitValidateMethod(buf *bytes.Buffer, d *dispatcher, name, pkgPath string, hasHook bool, fields []field, extractTags []string) error {
 	var fieldBuf bytes.Buffer
 	ctx := context{
@@ -166,8 +145,7 @@ func emitValidateMethod(buf *bytes.Buffer, d *dispatcher, name, pkgPath string, 
 		}
 	}
 
-	// Pointer receiver, unified with the scan plugin's Parse and avoiding a
-	// copy of the struct on every Validate call.
+	// Pointer receiver, as with Parse: no copy per call.
 	fmt.Fprintf(buf, "func (s *%s) Validate() error {\n", name)
 	buf.WriteString("\tvar errs []error\n")
 	buf.Write(fieldBuf.Bytes())

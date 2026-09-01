@@ -2,7 +2,6 @@ package validate_test
 
 import (
 	"go/format"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,11 +9,12 @@ import (
 	"gitlab.com/gorib/whisk/internal/generator"
 	"gitlab.com/gorib/whisk/internal/plugins/validate"
 	"gitlab.com/gorib/whisk/internal/shared"
+	"gitlab.com/gorib/whisk/internal/testmodule"
 )
 
 func runValidate(t *testing.T, source string, opts validate.Options) generator.Section {
 	t.Helper()
-	dir := newModule(t, source)
+	dir := testmodule.New(t, source)
 	_, structs, err := shared.Load(dir, filepath.Join(dir, "sample.go"))
 	if err != nil {
 		t.Fatalf("shared.Load: %v", err)
@@ -28,7 +28,7 @@ func runValidate(t *testing.T, source string, opts validate.Options) generator.S
 
 func runValidateExpectError(t *testing.T, source, want string) {
 	t.Helper()
-	dir := newModule(t, source)
+	dir := testmodule.New(t, source)
 	_, structs, err := shared.Load(dir, filepath.Join(dir, "sample.go"))
 	if err != nil {
 		t.Fatalf("shared.Load: %v", err)
@@ -65,7 +65,7 @@ type R struct {
 		"func (s *R) Validate() error",
 		`if s.Name == "" {`,
 		`Tag:  "required"`,
-		`Kind: "str"`,
+		`Kind: validate.KindStr`,
 		`validate.NewFieldSegment("go", "Name")`,
 	)
 }
@@ -83,7 +83,7 @@ type R struct {
 		`Tag:   "min"`,
 		`Tag:   "max"`,
 	)
-	if !contains(sec.Imports, "unicode/utf8") {
+	if !contains(importPaths(sec.Imports), "unicode/utf8") {
 		t.Errorf("imports missing unicode/utf8: %v", sec.Imports)
 	}
 }
@@ -312,7 +312,7 @@ type R struct {
 `, validate.Options{ExtractTags: []string{"json"}})
 
 	header := "package sample\n\nimport (\n"
-	for _, imp := range sec.Imports {
+	for _, imp := range importPaths(sec.Imports) {
 		if strings.Contains(imp, " ") {
 			parts := strings.SplitN(imp, " ", 2)
 			header += "\t" + parts[0] + " \"" + parts[1] + "\"\n"
@@ -373,35 +373,10 @@ func contains(haystack []string, needle string) bool {
 	return false
 }
 
-func newModule(t *testing.T, source string) string {
-	t.Helper()
-	dir := t.TempDir()
-	whiskRoot := whiskCheckoutRoot(t)
-	files := map[string]string{
-		"go.mod":    "module sample\n\ngo 1.26.0\n\nrequire gitlab.com/gorib/whisk v0.0.0\n",
-		"go.work":   "go 1.26.0\n\nuse (\n\t.\n\t" + whiskRoot + "\n)\n",
-		"sample.go": source,
+func importPaths(imports []generator.Import) []string {
+	out := make([]string, len(imports))
+	for i, imp := range imports {
+		out[i] = imp.Path
 	}
-	for name, body := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
-	return dir
-}
-
-func whiskCheckoutRoot(t *testing.T) string {
-	t.Helper()
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd: %v", err)
-	}
-	root, err := filepath.Abs(filepath.Join(cwd, "..", "..", ".."))
-	if err != nil {
-		t.Fatalf("Abs: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
-		t.Fatalf("whisk root not found at %s: %v", root, err)
-	}
-	return root
+	return out
 }

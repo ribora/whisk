@@ -37,7 +37,7 @@ func (s *Item) Validate() error {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "Name")},
 			Tag:      "required",
-			Kind:     "str",
+			Kind:     validate.KindStr,
 		})
 	}
 	if s.Name != "" {
@@ -46,7 +46,7 @@ func (s *Item) Validate() error {
 				Segments: validate.Path{validate.NewFieldSegment("go", "Name")},
 				Tag:      "min",
 				Value:    "1",
-				Kind:     "str",
+				Kind:     validate.KindStr,
 			})
 		}
 	}
@@ -56,7 +56,7 @@ func (s *Item) Validate() error {
 				Segments: validate.Path{validate.NewFieldSegment("go", "Price")},
 				Tag:      "gt",
 				Value:    "0",
-				Kind:     "value",
+				Kind:     validate.KindValue,
 			})
 		}
 	}
@@ -69,7 +69,7 @@ func (s *Cart) Validate() error {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "Items")},
 			Tag:      "required",
-			Kind:     "slice",
+			Kind:     validate.KindSlice,
 		})
 	}
 	if len(s.Items) < 1 {
@@ -77,7 +77,7 @@ func (s *Cart) Validate() error {
 			Segments: validate.Path{validate.NewFieldSegment("go", "Items")},
 			Tag:      "min",
 			Value:    "1",
-			Kind:     "slice",
+			Kind:     validate.KindSlice,
 		})
 	}
 	_seg := validate.NewFieldSegment("go", "Items")
@@ -95,14 +95,14 @@ func (s *Cart) Validate() error {
 					errs = append(errs, &validate.ValidationError{
 						Tag:   "min",
 						Value: "2",
-						Kind:  "str",
+						Kind:  validate.KindStr,
 					})
 				}
 				if utf8.RuneCountInString(v) > 10 {
 					errs = append(errs, &validate.ValidationError{
 						Tag:   "max",
 						Value: "10",
-						Kind:  "str",
+						Kind:  validate.KindStr,
 					})
 				}
 			}

@@ -27,7 +27,11 @@ func (s stubPlugin) Generate(structs []shared.StructInfo) (generator.Section, er
 		fmt.Fprintf(&sb, "// %s: %s sees %d fields, validateHook=%v parseHook=%v\n",
 			s.name, st.Name, len(st.Fields), st.HasValidateHook, st.HasParseHook)
 	}
-	return generator.Section{Code: []byte(sb.String()), Imports: s.imports}, nil
+	imports := make([]generator.Import, len(s.imports))
+	for i, path := range s.imports {
+		imports[i] = generator.Import{Path: path}
+	}
+	return generator.Section{Code: []byte(sb.String()), Imports: imports}, nil
 }
 
 func TestGenerate_writesFormattedFile(t *testing.T) {

@@ -16,13 +16,9 @@ func render(lexems []lexem, format Format) []byte {
 func renderOne(sb *strings.Builder, l lexem, format Format) {
 	fmt.Fprintf(sb, "func (s *%s) Parse(src scan.Source) error {\n", l.Name)
 
-	// Body unmarshal fires only when at least one field has no scan tag —
-	// otherwise json.Unmarshal has nowhere to write and would only risk
-	// failing on a body shape that doesn't match (e.g. an array into a
-	// struct). When emitted, body runs FIRST and embed/scoped lookups
-	// follow, so structured sources stay authoritative: a request body
-	// must not override a value an embed populated from a non-body scope
-	// (context/path/query).
+	// Only when some field is untagged: otherwise the unmarshal has nowhere to
+	// write and can only fail on a body shape that does not match. It runs first
+	// so that path and query stay authoritative over the body.
 	if l.HasBodyFields {
 		sb.WriteString("\tif body := src.Body(); len(body) > 0 {\n")
 		fmt.Fprintf(sb, "\t\tif err := %s(body, s); err != nil {\n", format.Unmarshal)
@@ -61,14 +57,12 @@ func renderScalarField(sb *strings.Builder, f sourceField) {
 	if f.Text {
 		emitTextUnmarshal(sb, "v", f, "\t\t")
 	} else {
-		emitScalarConvert(sb, "v", f.Type, f.Kind, "s."+f.Name, f.Name, "\t\t")
+		emitDecode(sb, "v", target{dst: "s." + f.Name, typ: f.Type, name: f.Name}, f.Kind, "\t\t")
 	}
 	sb.WriteString("\t}\n")
 }
 
-// emitTextUnmarshal hands the raw scope value to the type's own decoder. The
-// receiver is addressable because s is a pointer, so a value field needs no
-// temporary; a pointer field is allocated first.
+// s is a pointer, so a value field is addressable and needs no temporary.
 func emitTextUnmarshal(sb *strings.Builder, input string, f sourceField, ind string) {
 	if f.Pointee != "" {
 		fmt.Fprintf(sb, "%sif s.%s == nil {\n", ind, f.Name)
@@ -96,14 +90,13 @@ func renderSliceField(sb *strings.Builder, f sourceField) {
 		if f.ElemText {
 			emitTextAppend(sb, "v", f, "\t\t\t")
 		} else {
-			emitSliceAppend(sb, "v", f.ElemType, f.ElemKind, "s."+f.Name, f.Name, "\t\t\t")
+			emitDecode(sb, "v", target{dst: "s." + f.Name, typ: f.ElemType, name: f.Name, elem: true}, f.ElemKind, "\t\t\t")
 		}
 		sb.WriteString("\t\t}\n\t}\n")
 		return
 	}
 
-	// Non-repeated slice: comma-split a single Lookup value. Skip empty
-	// parts so trailing/leading commas don't produce zero-value entries.
+	// Empty parts are skipped, or a trailing comma would add a zero value.
 	fmt.Fprintf(sb, "\tif v := src.Lookup(%q, %q); v != \"\" {\n", f.Scope, f.Key)
 	sb.WriteString("\t\tparts := strings.Split(v, \",\")\n")
 	fmt.Fprintf(sb, "\t\ts.%s = make([]%s, 0, len(parts))\n", f.Name, f.ElemType)
@@ -112,152 +105,7 @@ func renderSliceField(sb *strings.Builder, f sourceField) {
 	if f.ElemText {
 		emitTextAppend(sb, "p", f, "\t\t\t")
 	} else {
-		emitSliceAppend(sb, "p", f.ElemType, f.ElemKind, "s."+f.Name, f.Name, "\t\t\t")
+		emitDecode(sb, "p", target{dst: "s." + f.Name, typ: f.ElemType, name: f.Name, elem: true}, f.ElemKind, "\t\t\t")
 	}
 	sb.WriteString("\t\t}\n\t}\n")
-}
-
-func emitScalarConvert(sb *strings.Builder, input, typ, kind, dst, name, ind string) {
-	switch kind {
-	case "string":
-		fmt.Fprintf(sb, "%s%s = %s\n", ind, dst, convert(typ, kind, input))
-	case "int", "int8", "int16", "int32", "int64":
-		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseInt(%s, 10, %d)\n", ind, input, bitSize(typ))
-		emitWrapErr(sb, name, ind)
-		fmt.Fprintf(sb, "%s%s = %s(parsed)\n", ind, dst, typ)
-	case "uint", "uint8", "uint16", "uint32", "uint64":
-		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseUint(%s, 10, %d)\n", ind, input, bitSize(typ))
-		emitWrapErr(sb, name, ind)
-		fmt.Fprintf(sb, "%s%s = %s(parsed)\n", ind, dst, typ)
-	case "float32", "float64":
-		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseFloat(%s, %d)\n", ind, input, bitSize(typ))
-		emitWrapErr(sb, name, ind)
-		fmt.Fprintf(sb, "%s%s = %s(parsed)\n", ind, dst, typ)
-	case "bool":
-		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseBool(%s)\n", ind, input)
-		emitWrapErr(sb, name, ind)
-		fmt.Fprintf(sb, "%s%s = %s\n", ind, dst, convert(typ, kind, "parsed"))
-	default:
-		fmt.Fprintf(sb, "%s// TODO whisk: cannot convert string to %s for %s — handle in parse(src) hook\n", ind, typ, name)
-		fmt.Fprintf(sb, "%s_ = %s\n", ind, input)
-	}
-}
-
-func emitSliceAppend(sb *strings.Builder, input, elem, kind, dst, name, ind string) {
-	switch kind {
-	case "string":
-		fmt.Fprintf(sb, "%s%s = append(%s, %s)\n", ind, dst, dst, convert(elem, kind, input))
-	case "int", "int8", "int16", "int32", "int64":
-		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseInt(%s, 10, %d)\n", ind, input, bitSize(elem))
-		emitWrapErr(sb, name, ind)
-		fmt.Fprintf(sb, "%s%s = append(%s, %s(parsed))\n", ind, dst, dst, elem)
-	case "uint", "uint8", "uint16", "uint32", "uint64":
-		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseUint(%s, 10, %d)\n", ind, input, bitSize(elem))
-		emitWrapErr(sb, name, ind)
-		fmt.Fprintf(sb, "%s%s = append(%s, %s(parsed))\n", ind, dst, dst, elem)
-	case "float32", "float64":
-		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseFloat(%s, %d)\n", ind, input, bitSize(elem))
-		emitWrapErr(sb, name, ind)
-		fmt.Fprintf(sb, "%s%s = append(%s, %s(parsed))\n", ind, dst, dst, elem)
-	case "bool":
-		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseBool(%s)\n", ind, input)
-		emitWrapErr(sb, name, ind)
-		fmt.Fprintf(sb, "%s%s = append(%s, %s)\n", ind, dst, dst, convert(elem, kind, "parsed"))
-	default:
-		fmt.Fprintf(sb, "%s// TODO whisk: cannot convert string to %s for %s element — handle in parse(src) hook\n", ind, elem, name)
-		fmt.Fprintf(sb, "%s_ = %s\n", ind, input)
-	}
-}
-
-// convert wraps expr in a conversion when the declared type is a named type
-// over kind — Status(v) — and leaves it bare when they are the same, so plain
-// string and bool fields keep assigning directly.
-func convert(typ, kind, expr string) string {
-	if typ == kind {
-		return expr
-	}
-	return typ + "(" + expr + ")"
-}
-
-func emitWrapErr(sb *strings.Builder, name, ind string) {
-	fmt.Fprintf(sb, "%sif err != nil {\n", ind)
-	fmt.Fprintf(sb, "%s\treturn failure.Wrap(\"%%w: %s: %%w\", scan.ErrPayload, err)\n", ind, name)
-	fmt.Fprintf(sb, "%s}\n", ind)
-}
-
-// bitSize returns the strconv bit-size argument for typ. `int`/`uint` are
-// parsed as 64-bit so values fit on 64-bit hosts — the cast back narrows
-// to the platform width.
-func bitSize(typ string) int {
-	switch typ {
-	case "int8", "uint8":
-		return 8
-	case "int16", "uint16":
-		return 16
-	case "int32", "uint32", "float32":
-		return 32
-	}
-	return 64
-}
-
-// neededImports inspects the lexem set to decide which import paths the
-// generated section references. failure is needed only where the code
-// wraps errors: body unmarshal and strconv conversions; the body-format
-// import is conditional on at least one lexem having body fields.
-func neededImports(lexems []lexem, format Format) []string {
-	wantStrconv := false
-	wantStrings := false
-	wantBody := false
-	wantWrap := false
-	var typeRefs []string
-	seenRef := map[string]bool{}
-	for _, l := range lexems {
-		wantBody = wantBody || l.HasBodyFields
-		for _, f := range l.Fields {
-			wantWrap = wantWrap || f.Text || f.ElemText
-			for _, ref := range f.Refs {
-				if !seenRef[ref] {
-					seenRef[ref] = true
-					typeRefs = append(typeRefs, ref)
-				}
-			}
-			if f.ElemType != "" {
-				wantStrings = true
-				if needsStrconv(f.ElemKind) {
-					wantStrconv = true
-				}
-				continue
-			}
-			if needsStrconv(f.Kind) {
-				wantStrconv = true
-			}
-		}
-	}
-	out := []string{"gitlab.com/gorib/whisk/scan"}
-	if wantBody || wantStrconv || wantWrap {
-		out = append(out, "gitlab.com/gorib/failure")
-	}
-	if wantBody {
-		out = append(out, format.Import)
-	}
-	if wantStrconv {
-		out = append(out, "strconv")
-	}
-	if wantStrings {
-		out = append(out, "strings")
-	}
-	return append(out, typeRefs...)
-}
-
-// needsStrconv takes an underlying basic kind, never a declared type name: a
-// named type over int still parses with strconv, and asking about "Page" would
-// answer no and leave the import out.
-func needsStrconv(kind string) bool {
-	switch kind {
-	case "int", "int8", "int16", "int32", "int64",
-		"uint", "uint8", "uint16", "uint32", "uint64",
-		"float32", "float64", "bool":
-		return true
-	}
-	return false
 }

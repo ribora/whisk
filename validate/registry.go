@@ -1,7 +1,7 @@
 package validate
 
-// BuiltIns maps tag name to whether Is<Tag> returns an error worth capturing.
-// Adding a built-in: drop Is<Tag> in this package and register the tag here.
+// The bool is whether Is<Tag> returns an error worth keeping. To add a built-in,
+// drop Is<Tag> in this package and name the tag here.
 var BuiltIns = map[string]bool{
 	"email":    true,
 	"uuid":     true,

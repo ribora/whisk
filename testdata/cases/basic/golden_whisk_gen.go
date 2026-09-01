@@ -50,14 +50,14 @@ func (s *Login) Validate() error {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "UserID", "json", "user_id")},
 			Tag:      "required",
-			Kind:     "str",
+			Kind:     validate.KindStr,
 		})
 	}
 	if s.Token == "" {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "Token", "json", "token")},
 			Tag:      "required",
-			Kind:     "str",
+			Kind:     validate.KindStr,
 		})
 	}
 	if s.Token != "" {
@@ -66,7 +66,7 @@ func (s *Login) Validate() error {
 				Segments: validate.Path{validate.NewFieldSegment("go", "Token", "json", "token")},
 				Tag:      "min",
 				Value:    "8",
-				Kind:     "str",
+				Kind:     validate.KindStr,
 			})
 		}
 	}
@@ -74,7 +74,7 @@ func (s *Login) Validate() error {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "Email", "json", "email")},
 			Tag:      "required",
-			Kind:     "str",
+			Kind:     validate.KindStr,
 		})
 	}
 	if s.Email != "" {
@@ -82,7 +82,7 @@ func (s *Login) Validate() error {
 			errs = append(errs, &validate.ValidationError{
 				Segments: validate.Path{validate.NewFieldSegment("go", "Email", "json", "email")},
 				Tag:      "email",
-				Kind:     "str",
+				Kind:     validate.KindStr,
 				Err:      errCapture,
 			})
 		}
@@ -91,7 +91,7 @@ func (s *Login) Validate() error {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "Password", "json", "password")},
 			Tag:      "required",
-			Kind:     "str",
+			Kind:     validate.KindStr,
 		})
 	}
 	if s.Password != "" {
@@ -100,7 +100,7 @@ func (s *Login) Validate() error {
 				Segments: validate.Path{validate.NewFieldSegment("go", "Password", "json", "password")},
 				Tag:      "min",
 				Value:    "8",
-				Kind:     "str",
+				Kind:     validate.KindStr,
 			})
 		}
 		if utf8.RuneCountInString(s.Password) > 64 {
@@ -108,7 +108,7 @@ func (s *Login) Validate() error {
 				Segments: validate.Path{validate.NewFieldSegment("go", "Password", "json", "password")},
 				Tag:      "max",
 				Value:    "64",
-				Kind:     "str",
+				Kind:     validate.KindStr,
 			})
 		}
 	}
@@ -119,7 +119,7 @@ func (s *Login) Validate() error {
 				errs = append(errs, &validate.ValidationError{
 					Segments: validate.Path{validate.NewFieldSegment("go", "Tags", "json", "tags")},
 					Tag:      "unique",
-					Kind:     "slice",
+					Kind:     validate.KindSlice,
 				})
 			}
 			seenTags[v] = true
@@ -131,7 +131,7 @@ func (s *Login) Validate() error {
 				Segments: validate.Path{validate.NewFieldSegment("go", "Page", "json", "page")},
 				Tag:      "gte",
 				Value:    "1",
-				Kind:     "value",
+				Kind:     validate.KindValue,
 			})
 		}
 		if s.Page > 100 {
@@ -139,7 +139,7 @@ func (s *Login) Validate() error {
 				Segments: validate.Path{validate.NewFieldSegment("go", "Page", "json", "page")},
 				Tag:      "lte",
 				Value:    "100",
-				Kind:     "value",
+				Kind:     validate.KindValue,
 			})
 		}
 	}

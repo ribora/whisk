@@ -28,7 +28,7 @@ func (s *Auth) Validate() error {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "Code")},
 			Tag:      "required",
-			Kind:     "str",
+			Kind:     validate.KindStr,
 		})
 	}
 	if s.Code != "" {
@@ -36,7 +36,7 @@ func (s *Auth) Validate() error {
 			errs = append(errs, &validate.ValidationError{
 				Segments: validate.Path{validate.NewFieldSegment("go", "Code")},
 				Tag:      "passcode",
-				Kind:     "str",
+				Kind:     validate.KindStr,
 			})
 		}
 	}

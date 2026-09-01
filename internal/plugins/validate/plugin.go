@@ -10,31 +10,20 @@ import (
 	wvalidate "gitlab.com/gorib/whisk/validate"
 )
 
-// Options configures the validate plugin.
 type Options struct {
-	// StoragePath is the absolute directory scanned for user-defined
-	// Is<Tag> validators. A tag named "passcode" maps to passcode.go in
-	// this directory holding `func IsPasscode(...) bool` (or the error
-	// variant `(bool, error)`).
+	// validate:"passcode" -> <StoragePath>/passcode.go, func IsPasscode(…) bool
 	StoragePath string
-	// UserChecksImport is the import path for user-defined Is<Tag>
-	// validators discovered in StoragePath. Required when StoragePath
-	// contains any matching file; ignored otherwise. Aliased as `checks`
-	// in the generated code.
+	// import path of StoragePath; required once anything is found there
 	UserChecksImport string
-	// ExtractTags lists struct-tag keys (e.g. "json", "xml") whose values
-	// should appear in path segments alongside the Go field name. "go" is
-	// implicit. Empty slice ⇒ only "go" is included.
+	// tag keys whose names join "go" in a path segment: json, xml, …
 	ExtractTags []string
 }
 
-// userChecksAlias is the import alias used for user-defined validators in
-// generated code. Picked to be short and obviously not a built-in.
+// Short, and obviously not a built-in.
 const userChecksAlias = "checks"
 
-// Plugin generates Validate() error methods. Only structs that have at
-// least one validate tag, a validate() hook, or an embed contributing a
-// Validate get a method — others are skipped (no empty Validate bloat).
+// Only a struct that carries validation gets a method: an empty Validate on every
+// tagless wrapper is noise the reader has to skip past.
 type Plugin struct {
 	opts Options
 }
@@ -48,8 +37,8 @@ func (p *Plugin) Generate(structs []shared.StructInfo) (generator.Section, error
 		return generator.Section{}, nil
 	}
 
-	// First pass: promote fields, decide which structs contribute, and
-	// gather the tag names referenced so we can resolve handlers.
+	// Handlers are resolved from the set of tags actually used, so every struct is
+	// walked before any of them is rendered.
 	type prepared struct {
 		Name     string
 		PkgPath  string
@@ -86,8 +75,8 @@ func (p *Plugin) Generate(structs []shared.StructInfo) (generator.Section, error
 		return generator.Section{}, nil
 	}
 
-	// Resolve every used tag to a handler-prefix. User-defined Is<Tag>
-	// overrides built-ins, so the storage-path check runs first.
+	// The storage path is consulted first: a user's Is<Tag> is meant to win over
+	// the built-in of the same name.
 	resolutions := map[string]tagResolution{}
 	hasUserChecks := false
 	for tag := range usedTags {
@@ -118,9 +107,7 @@ func (p *Plugin) Generate(structs []shared.StructInfo) (generator.Section, error
 	return generator.Section{Code: code.Bytes(), Imports: imports}, nil
 }
 
-// builtinFlowTags lists tags whose handlers are wired up unconditionally —
-// they don't need to be in the resolutions map (which only carries Is<Tag>
-// lookups for custom + built-in validators).
+// Wired unconditionally, so they never need resolving to an Is<Tag>.
 var builtinFlowTags = map[string]struct{}{
 	"required": {},
 	"unique":   {},
@@ -129,34 +116,26 @@ var builtinFlowTags = map[string]struct{}{
 	"gt": {}, "lt": {}, "eq": {}, "equal": {}, "ne": {}, "neq": {}, "len": {},
 }
 
-// structContributes reports whether s gets a generated Validate. A struct
-// contributes iff it (or something nested under it) actually carries
-// validation — no empty Validate bloat for tagless wrapper structs.
+// True when s, or anything nested under it, actually carries validation.
 func structContributes(s shared.StructInfo) bool {
 	return willHaveValidate(s.Named)
 }
 
-// neededImports inspects the generated code to decide which imports the
-// final file actually references. errors is always implied (every emitted
-// Validate ends in errors.Join), but validate is gated on use: a struct can
-// contribute (carry a validate tag) yet emit no validate.* code — e.g.
-// required on a non-pointer struct value, which has no zero check.
-func neededImports(generatedCode string, hasUserChecks bool, userChecksImport string) []string {
-	out := []string{"errors"}
+// Read off the emitted text rather than predicted: a struct can carry a tag and
+// still emit no validate.* call — required on a struct value has no zero check.
+func neededImports(generatedCode string, hasUserChecks bool, userChecksImport string) []generator.Import {
+	out := []generator.Import{{Path: "errors"}}
 	if strings.Contains(generatedCode, "validate.") {
-		out = append(out, "gitlab.com/gorib/whisk/validate")
+		out = append(out, generator.Import{Path: "gitlab.com/gorib/whisk/validate"})
 	}
 	if strings.Contains(generatedCode, "fmt.Sprintf") {
-		out = append(out, "fmt")
+		out = append(out, generator.Import{Path: "fmt"})
 	}
 	if strings.Contains(generatedCode, "utf8.RuneCountInString") {
-		out = append(out, "unicode/utf8")
+		out = append(out, generator.Import{Path: "unicode/utf8"})
 	}
 	if hasUserChecks && userChecksImport != "" {
-		// Aliased imports use a special marker the orchestrator handles;
-		// for now embed the alias directly in the import path token. We'll
-		// extend Section if/when more plugins need aliasing.
-		out = append(out, userChecksAlias+" "+userChecksImport)
+		out = append(out, generator.Import{Alias: userChecksAlias, Path: userChecksImport})
 	}
 	return out
 }

@@ -3,21 +3,16 @@ package scan
 import (
 	"fmt"
 
+	"gitlab.com/gorib/whisk/internal/generator"
 	"gitlab.com/gorib/whisk/internal/shared"
 )
 
-// bodyFmtAlias is the import alias for a custom extractor package in generated
-// code — kept distinct from the runtime "scan" import (which a pkg/scan
-// extractor would otherwise collide with).
+// Distinct from the runtime "scan" import, which an extractor in pkg/scan
+// would otherwise collide with.
 const bodyFmtAlias = "bodyfmt"
 
-// ResolveFormat returns the body Format for a -format name. json and xml are
-// built-in presets; any other name must be backed by a custom extractor — a
-//
-//	func Unmarshal<PascalName>(b []byte, v any) error
-//
-// declared in extractorDir/<name>.go. extractorImport is that directory's
-// import path, emitted (aliased) in the generated file.
+// Anything beyond json and xml must be backed by
+// func Unmarshal<PascalName>([]byte, any) error in extractorDir/<name>.go.
 func ResolveFormat(name, extractorDir, extractorImport string) (Format, error) {
 	switch name {
 	case "", "json":
@@ -31,7 +26,7 @@ func ResolveFormat(name, extractorDir, extractorImport string) (Format, error) {
 	}
 	return Format{
 		Tag:       name,
-		Import:    bodyFmtAlias + " " + extractorImport,
+		Import:    generator.Import{Alias: bodyFmtAlias, Path: extractorImport},
 		Unmarshal: bodyFmtAlias + "." + fn,
 	}, nil
 }

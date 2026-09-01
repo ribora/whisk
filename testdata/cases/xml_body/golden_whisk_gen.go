@@ -27,7 +27,7 @@ func (s *Doc) Validate() error {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "Body", "xml", "body")},
 			Tag:      "required",
-			Kind:     "str",
+			Kind:     validate.KindStr,
 		})
 	}
 	return errors.Join(errs...)

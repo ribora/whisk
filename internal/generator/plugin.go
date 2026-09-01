@@ -4,21 +4,24 @@ import (
 	"gitlab.com/gorib/whisk/internal/shared"
 )
 
-// Plugin is a code-generation unit: it inspects the parsed structs and emits
-// one section of the final file. The orchestrator concatenates sections,
-// dedupes imports, and formats once. Plugins MUST be deterministic.
+// One section of the final file. Output must be deterministic — it is compared
+// against goldens and committed.
 type Plugin interface {
 	Name() string
-	// Generate returns a zero-value Section when the plugin has nothing to
-	// add for these structs.
+	// A zero Section means nothing to add.
 	Generate(structs []shared.StructInfo) (Section, error)
 }
 
-// Section is one plugin's contribution. Imports are full paths; the
-// orchestrator dedupes and sorts them across plugins. Warnings are
-// non-fatal — surfaced, but generation continues.
+// A warning does not stop generation.
 type Section struct {
 	Code     []byte
-	Imports  []string
+	Imports  []Import
 	Warnings []string
+}
+
+// An import as the generated file needs it. The alias used to travel inside the
+// path, packed as "alias path" and split apart again on the way out.
+type Import struct {
+	Alias string
+	Path  string
 }

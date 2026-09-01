@@ -11,13 +11,14 @@ import (
 	"gitlab.com/gorib/whisk/internal/generator"
 	"gitlab.com/gorib/whisk/internal/plugins/scan"
 	"gitlab.com/gorib/whisk/internal/shared"
+	"gitlab.com/gorib/whisk/internal/testmodule"
 )
 
 // runScan loads the synthetic module, runs the scan plugin in isolation,
 // and returns its emitted code (un-rendered — no package header / imports).
 func runScan(t *testing.T, source string, format scan.Format) generator.Section {
 	t.Helper()
-	dir := newModule(t, source)
+	dir := testmodule.New(t, source)
 	_, structs, err := shared.Load(dir, filepath.Join(dir, "sample.go"))
 	if err != nil {
 		t.Fatalf("shared.Load: %v", err)
@@ -32,7 +33,7 @@ func runScan(t *testing.T, source string, format scan.Format) generator.Section 
 // runScanExpectError loads + runs and expects a non-nil error containing want.
 func runScanExpectError(t *testing.T, source, want string) {
 	t.Helper()
-	dir := newModule(t, source)
+	dir := testmodule.New(t, source)
 	_, structs, err := shared.Load(dir, filepath.Join(dir, "sample.go"))
 	if err != nil {
 		t.Fatalf("shared.Load: %v", err)
@@ -266,7 +267,7 @@ type Req struct {
 `, scan.FormatJSON)
 
 	header := "package sample\n\nimport (\n"
-	for _, imp := range sec.Imports {
+	for _, imp := range importPaths(sec.Imports) {
 		header += "\t\"" + imp + "\"\n"
 	}
 	header += ")\n\n"
@@ -361,7 +362,8 @@ func TestResolveFormat_customExtractor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveFormat: %v", err)
 	}
-	if f.Tag != "toml" || f.Import != "bodyfmt mod/pkg/scan" || f.Unmarshal != "bodyfmt.UnmarshalToml" {
+	want := generator.Import{Alias: "bodyfmt", Path: "mod/pkg/scan"}
+	if f.Tag != "toml" || f.Import != want || f.Unmarshal != "bodyfmt.UnmarshalToml" {
 		t.Errorf("unexpected Format: %+v", f)
 	}
 }
@@ -428,56 +430,31 @@ func mustNot(t *testing.T, haystack string, needles ...string) {
 	}
 }
 
-func wantImports(t *testing.T, got []string, want ...string) {
+func wantImports(t *testing.T, got []generator.Import, want ...string) {
 	t.Helper()
+	paths := importPaths(got)
 	have := map[string]bool{}
-	for _, g := range got {
-		have[g] = true
+	for _, p := range paths {
+		have[p] = true
 	}
 	for _, w := range want {
 		if !have[w] {
-			t.Errorf("missing import %q (got %v)", w, got)
+			t.Errorf("missing import %q (got %v)", w, paths)
 		}
 	}
-	for _, g := range got {
-		if !slices.Contains(want, g) {
-			t.Errorf("unexpected extra import %q (want %v)", g, want)
+	for _, p := range paths {
+		if !slices.Contains(want, p) {
+			t.Errorf("unexpected extra import %q (want %v)", p, want)
 		}
 	}
 }
 
-func newModule(t *testing.T, source string) string {
-	t.Helper()
-	dir := t.TempDir()
-	whiskRoot := whiskCheckoutRoot(t)
-	files := map[string]string{
-		"go.mod":    "module sample\n\ngo 1.26.0\n\nrequire gitlab.com/gorib/whisk v0.0.0\n",
-		"go.work":   "go 1.26.0\n\nuse (\n\t.\n\t" + whiskRoot + "\n)\n",
-		"sample.go": source,
+// The assertions are about which packages the section pulls in, not about how each
+// one is spelled.
+func importPaths(imports []generator.Import) []string {
+	out := make([]string, len(imports))
+	for i, imp := range imports {
+		out[i] = imp.Path
 	}
-	for name, body := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
-	return dir
-}
-
-func whiskCheckoutRoot(t *testing.T) string {
-	t.Helper()
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd: %v", err)
-	}
-	// This test lives at whisk/internal/plugins/scan/. Climb three levels
-	// to reach the whisk module root.
-	root, err := filepath.Abs(filepath.Join(cwd, "..", "..", ".."))
-	if err != nil {
-		t.Fatalf("Abs: %v", err)
-	}
-	// Validate by checking for go.mod with module gitlab.com/gorib/whisk.
-	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
-		t.Fatalf("whisk root not found at %s: %v", root, err)
-	}
-	return root
+	return out
 }

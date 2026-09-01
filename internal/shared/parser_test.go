@@ -1,15 +1,15 @@
 package shared_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"gitlab.com/gorib/whisk/internal/shared"
+	"gitlab.com/gorib/whisk/internal/testmodule"
 )
 
 func TestLoad_topLevelStructsInSourceOrder(t *testing.T) {
-	dir := newModule(t, `package sample
+	dir := testmodule.New(t, `package sample
 
 type Z struct {
 	ID string `+"`scan:\"path=id\"`"+`
@@ -43,8 +43,37 @@ type notExported struct {
 	}
 }
 
+// An unexported request DTO is ordinary, and it only reaches us while the loader
+// reads source: export data does not carry unexported types. This is what the
+// NeedSyntax in the load mode is for, and dropping it fails here rather than in
+// somebody's project.
+func TestLoad_seesUnexportedStructs(t *testing.T) {
+	dir := testmodule.New(t, `package sample
+
+type createOrder struct {
+	Currency string `+"`scan:\"query=currency\"`"+`
+}
+`)
+
+	_, structs, err := shared.Load(dir, filepath.Join(dir, "sample.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(structs) != 1 || structs[0].Name != "createOrder" {
+		t.Fatalf("got %v, want one struct named createOrder", names(structs))
+	}
+}
+
+func names(structs []shared.StructInfo) []string {
+	out := make([]string, len(structs))
+	for i, s := range structs {
+		out[i] = s.Name
+	}
+	return out
+}
+
 func TestLoad_fieldShapes(t *testing.T) {
-	dir := newModule(t, `package sample
+	dir := testmodule.New(t, `package sample
 
 type Inner struct{ V int }
 
@@ -132,7 +161,7 @@ type S struct {
 }
 
 func TestLoad_detectsHooks(t *testing.T) {
-	dir := newModule(t, `package sample
+	dir := testmodule.New(t, `package sample
 
 import "gitlab.com/gorib/whisk/scan"
 
@@ -166,7 +195,7 @@ type Plain struct{ Y int }
 }
 
 func TestLoad_embeddedField(t *testing.T) {
-	dir := newModule(t, `package sample
+	dir := testmodule.New(t, `package sample
 
 type Base struct{ ID string }
 
@@ -204,39 +233,4 @@ type Base2 struct{ Y int }
 	if w.Fields[2].IsEmbedded {
 		t.Errorf("Fields[2] (Name) should not be embedded")
 	}
-}
-
-// newModule writes a tiny self-contained Go module rooted in t.TempDir().
-// A local go.work pins gitlab.com/gorib/whisk to the on-disk checkout so
-// tests that import whisk/scan don't need network resolution or go.sum.
-func newModule(t *testing.T, source string) string {
-	t.Helper()
-	dir := t.TempDir()
-	whiskRoot := whiskCheckoutRoot(t)
-	files := map[string]string{
-		"go.mod":    "module sample\n\ngo 1.26.0\n\nrequire gitlab.com/gorib/whisk v0.0.0\n",
-		"go.work":   "go 1.26.0\n\nuse (\n\t.\n\t" + whiskRoot + "\n)\n",
-		"sample.go": source,
-	}
-	for name, body := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
-			t.Fatalf("write %s: %v", name, err)
-		}
-	}
-	return dir
-}
-
-// whiskCheckoutRoot returns the absolute path of the whisk module on disk.
-// We walk up from this test file (under whisk/internal/shared) two levels.
-func whiskCheckoutRoot(t *testing.T) string {
-	t.Helper()
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd: %v", err)
-	}
-	root, err := filepath.Abs(filepath.Join(cwd, "..", ".."))
-	if err != nil {
-		t.Fatalf("Abs: %v", err)
-	}
-	return root
 }

@@ -8,18 +8,10 @@ import (
 	"gitlab.com/gorib/whisk/internal/shared"
 )
 
-// willHaveValidate reports whether t will have a Validate() method at the
-// final compile — i.e. it carries validate tags / a hook / a hand-written
-// Validate, directly or through a nested field (embed, named struct, or
-// slice/map/array/pointer element).
-//
-// It keys off struct tags and hand-written methods, both visible under
-// -tags whisk, NOT off whisk-generated methods (which are excluded). Since a
-// generated Validate exists only because of those same visible tags/hooks,
-// the predicate has no false negatives, and it agrees across packages —
-// every whisk run computes it identically. That makes it safe both as the
-// "does this struct contribute?" test and as the "can I call v.Validate()
-// directly?" test.
+// Whether t has a Validate at the final compile, decided from tags and
+// hand-written methods rather than from generated ones — which are invisible
+// under -tags whisk. A generated Validate exists only because of those same
+// tags, so the answer has no false negatives and every run computes it alike.
 func willHaveValidate(t types.Type) bool {
 	return reachesValidation(t, map[*types.Named]bool{})
 }
@@ -65,9 +57,8 @@ func structReaches(st *types.Struct, seen map[*types.Named]bool) bool {
 	return false
 }
 
-// isInterfaceType reports whether t's underlying type is an interface — those
-// dive targets keep the runtime type-assertion, since their dynamic value may
-// carry a Validate that the static type doesn't expose.
+// An interface keeps the run-time assertion: its dynamic value may carry a
+// Validate the static type does not expose.
 func isInterfaceType(t types.Type) bool {
 	if t == nil {
 		return false
@@ -76,8 +67,7 @@ func isInterfaceType(t types.Type) bool {
 	return ok
 }
 
-// diveElem returns the type a dive iterates over: the element of a
-// slice/array/map, or the (pointer-unwrapped) struct type itself.
+// What a dive iterates over: the element of a collection, or the value itself.
 func diveElem(f field) types.Type {
 	switch x := f.TypeRef.(type) {
 	case *types.Slice:

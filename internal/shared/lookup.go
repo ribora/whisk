@@ -9,10 +9,9 @@ import (
 	"strings"
 )
 
-// FindFunc returns the top-level func named name declared in dir/file, or nil
-// if the directory, file, or function is absent. Callers inspect the returned
-// declaration for signature details. Used by the convention-directory lookups
-// (validate's Is<Tag>, scan's Unmarshal<Format>).
+// The convention lookups — validate's Is<Tag>, scan's Unmarshal<Format> — emit a
+// package-qualified call, so a method of the same name is not a match: accepting one
+// would emit checks.IsPasscode(…) for something that is not there.
 func FindFunc(dir, file, name string) *ast.FuncDecl {
 	if dir == "" {
 		return nil
@@ -26,14 +25,14 @@ func FindFunc(dir, file, name string) *ast.FuncDecl {
 		return nil
 	}
 	for _, decl := range node.Decls {
-		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == name {
+		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && fn.Name.Name == name {
 			return fn
 		}
 	}
 	return nil
 }
 
-// PascalCase converts snake_case → PascalCase ("company_id" → "CompanyId").
+// company_id -> CompanyId
 func PascalCase(s string) string {
 	if s == "" {
 		return ""

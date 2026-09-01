@@ -1,5 +1,5 @@
-// Package cases_test drives the golden-file suite for whisk codegen.
-// Each subdirectory under testdata/cases/ holds a self-contained case:
+// The golden-file suite for whisk codegen. Each subdirectory under
+// testdata/cases/ holds a self-contained case:
 //
 //	setup.go            — source struct definitions (no scan/validate
 //	                      transformations applied yet)
@@ -7,17 +7,18 @@
 //	                      `!whisk` so it's excluded from the loader's
 //	                      view at codegen time, matching production)
 //
-// Run `go test ./whisk/testdata/cases/...` to verify, or with `-update`
-// to regenerate the goldens after a deliberate change.
-package cases_test
+// `-update` regenerates the goldens after a deliberate change. This lives beside
+// main.go rather than in testdata because the go tool skips testdata for wildcard
+// patterns: from in there, `go test ./...` ran none of it.
+package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -40,9 +41,11 @@ type caseSpec struct {
 var successCases = []caseSpec{
 	{dir: "basic", format: scan.FormatJSON},
 	{dir: "named_scalars", format: scan.FormatJSON},
+	{dir: "zero_guards", format: scan.FormatJSON},
 	{dir: "text_unmarshal", format: scan.FormatJSON},
 	{dir: "embed", format: scan.FormatJSON},
 	{dir: "dive_slice", format: scan.FormatJSON},
+	{dir: "dive_map", format: scan.FormatJSON},
 	{dir: "hook_only", format: scan.FormatJSON},
 	{dir: "tags_only", format: scan.FormatJSON},
 	{dir: "required_struct_value", format: scan.FormatJSON},
@@ -56,8 +59,11 @@ var successCases = []caseSpec{
 	{
 		dir: "custom_format",
 		format: scan.Format{
-			Tag:       "toml",
-			Import:    "bodyfmt gitlab.com/gorib/whisk/testdata/cases/custom_format/extractor",
+			Tag: "toml",
+			Import: generator.Import{
+				Alias: "bodyfmt",
+				Path:  "gitlab.com/gorib/whisk/testdata/cases/custom_format/extractor",
+			},
 			Unmarshal: "bodyfmt.UnmarshalToml",
 		},
 	},
@@ -72,6 +78,7 @@ var errorCases = []errorCase{
 	{dir: "err_bordering", errContains: `not marked scan:"embed"`},
 	{dir: "err_bad_tag", errContains: "unsupported validator tag"},
 	{dir: "err_pointer_embed", errContains: "on a pointer field"},
+	{dir: "err_time_eq", errContains: "doesn't make sense for time field"},
 }
 
 func TestSuccess(t *testing.T) {
@@ -155,6 +162,7 @@ func TestErrors(t *testing.T) {
 var runnableCases = []string{
 	"named_scalars",
 	"text_unmarshal",
+	"zero_guards",
 }
 
 // TestGoldensRun executes those cases. The go tool skips testdata for wildcard
@@ -187,15 +195,32 @@ func TestGoldensCompile(t *testing.T) {
 	}
 }
 
-// caseDir returns the absolute path of a case directory under testdata/.
-// It uses the caller's source path so the test works regardless of cwd.
+// caseDir returns the absolute path of a case directory under testdata/cases,
+// found from the module root so the test works regardless of cwd.
 func caseDir(t *testing.T, dir string) string {
 	t.Helper()
-	_, here, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("runtime.Caller failed")
+	root, err := moduleRoot()
+	if err != nil {
+		t.Fatal(err)
 	}
-	return filepath.Join(filepath.Dir(here), dir)
+	return filepath.Join(root, "testdata", "cases", dir)
+}
+
+func moduleRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", errors.New("go.mod not found")
+		}
+		dir = parent
+	}
 }
 
 func storagePath(pkgDir, sub string) string {

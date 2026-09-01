@@ -52,7 +52,7 @@ func (s *Inner) Validate() error {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "Token")},
 			Tag:      "required",
-			Kind:     "str",
+			Kind:     validate.KindStr,
 		})
 	}
 	return errors.Join(errs...)
@@ -64,7 +64,7 @@ func (s *FromContext) Validate() error {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "UserID")},
 			Tag:      "required",
-			Kind:     "value",
+			Kind:     validate.KindValue,
 		})
 	}
 	return errors.Join(errs...)
@@ -82,7 +82,7 @@ func (s *Request) Validate() error {
 		errs = append(errs, &validate.ValidationError{
 			Segments: validate.Path{validate.NewFieldSegment("go", "FacCode")},
 			Tag:      "required",
-			Kind:     "str",
+			Kind:     validate.KindStr,
 		})
 	}
 	return errors.Join(errs...)

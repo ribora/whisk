@@ -168,13 +168,15 @@ parameter is a bare string, not a JSON document, so a type implementing only
 **body** those types bind normally — `json.Unmarshal` honours both interfaces
 there.
 
-> **Migrating a field to a decoding type changes its status code.** A bad value
-> in `ID string` with `validate:"uuid"` fails validation, which the error
-> renderer answers with **422**. The same value in `ID uuid.UUID` fails in
-> `Parse`, wrapped as `scan.ErrPayload`, which is **400**. Both are defensible —
-> one value is a valid string that breaks a rule, the other cannot be held by
-> the field at all — but the switch is silent, and a client branching on the
-> code will notice. Change the two together, or keep the string.
+> **Migrating a field to a decoding type changes the class of the error.** whisk
+> returns kinds, not statuses: a bad value in `ID string` with `validate:"uuid"`
+> is a `*validate.ValidationError`, while the same value in `ID uuid.UUID` fails
+> in `Parse` and comes back wrapped in `scan.ErrPayload`. What that becomes is up
+> to whoever renders it — the HTTP middleware in `gorib/http` answers the first
+> with **422** and `type: validation_failed`, the second with **400**; a queue
+> consumer over the same struct has no status to answer with at all. Both classes
+> are defensible, but the switch is silent, so change the renderer's contract
+> alongside the field, or keep the string.
 
 Conversion failures wrap `scan.ErrPayload` with the field name.
 
@@ -247,9 +249,25 @@ other checks (no spurious "email" error on an empty string).
 |---|---|---|
 | `required` | any | string `!= ""`, number `!= 0`, slice/map non-empty, pointer non-nil, `time.Time` non-zero (not valid on `bool` — use `equal`) |
 | `min`, `max`, `gt`, `gte`, `lt`, `lte` | string, number, slice/map, `time.Time` | length for strings/slices/maps, value for numbers, point-in-time for `time.Time` (`now`, `7d`, `-30d`, `2024-01-01`) |
-| `eq`, `ne`, `equal`, `neq` | any | value comparison |
+| `eq`, `ne`, `equal`, `neq` | string, number, bool | value comparison (a codegen error on `time.Time` — bound an instant with `gte`/`lte`) |
 | `len` | string, slice/map | exact length |
 | `oneof=A B C` | string, number | space-separated whitelist |
+
+Every tag other than `required` sits inside a presence guard, so an empty
+optional field says nothing and only `required` reports absence:
+
+```go
+Id  string `validate:"required,uuid"`  // empty  -> required fails
+Alt string `validate:"uuid"`           // empty  -> silent, it is optional
+```
+
+A named type is classified by what it is declared over: `type ID string` is a
+string for the guard, for `required` and for the `Kind` the error carries, and
+it is converted on the way into the built-ins.
+
+An element of a collection follows the same rule, so `dive,min=2` lets an empty
+string through and `dive,required,min=2` is how you refuse one — and an empty
+element then reports `required` alone rather than `required` and `min` together.
 
 ### Format
 
@@ -338,10 +356,14 @@ type ValidationError struct {
     Segments Path   // structured path to the field
     Tag      string // the tag that failed ("min")
     Value    string // tag argument or sub-field name ("8")
-    Kind     string // str | value | slice | obj | time
+    Kind     string // KindStr | KindValue | KindSlice | KindObj | KindTime
     Err      error  // optional underlying detail (from error-returning validators)
 }
 ```
+
+`Kind` says what shape of value failed, so a client can word `min` as "too
+short" for a string and "too few items" for a list. Compare it against the
+`Kind*` constants — the generated code emits those, not literals.
 
 Paths are structured (`[]PathSegment`), not strings — the caller renders them
 in whatever style the receiver expects:
@@ -476,7 +498,7 @@ func (s *LoginRequest) Validate() error {
         errs = append(errs, &validate.ValidationError{
             Segments: validate.Path{validate.NewFieldSegment("go", "UserID")},
             Tag:      "required",
-            Kind:     "str",
+            Kind:     validate.KindStr,
         })
     }
     return errors.Join(errs...)
@@ -512,6 +534,30 @@ gitlab.com/gorib/whisk/
 Adding a third plugin (e.g. swagger) means implementing the `Plugin` interface
 and, if it has CLI settings, a `Config`/`BindFlags` registered under its name —
 the orchestrator and `main` don't grow special-case knowledge.
+
+## Contributing
+
+The generator is covered by golden files: each case under `testdata/cases/<name>/`
+is a pair of `setup.go` (input) and `golden_whisk_gen.go` (expected output). The
+suite lives in `cmd/whisk/goldens_test.go` rather than beside the cases, because
+the go tool ignores `testdata` in wildcard patterns — from in there, `go test ./...`
+ran none of it and the goldens drifted unnoticed.
+
+Three tests, and the second two exist because the first is not enough:
+
+- `TestSuccess` compares bytes;
+- `TestGoldensCompile` builds every case, since a wrong import list passes a byte
+  comparison and still emits a file that does not compile;
+- `TestGoldensRun` executes the cases listed in `runnableCases`, since a missing
+  nil guard compiles and only fails when something calls it.
+
+To add a case:
+
+1. write `testdata/cases/<name>/setup.go`;
+2. add it to `successCases` (or `errorCases` with an expected error substring) in
+   `cmd/whisk/goldens_test.go`, and to `runnableCases` if it carries a `_test.go`;
+3. `make golden` to populate the golden, then read it;
+4. `make test` to check that it compares, compiles and runs.
 
 ## Limitations
 

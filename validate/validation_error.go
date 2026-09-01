@@ -61,7 +61,6 @@ func (p Path) String() string {
 	return p.Format(GoFormatter)
 }
 
-// Falls back to the "go" entry when key is missing.
 func FormatterFor(key string) func(int, PathSegment) string {
 	return func(i int, s PathSegment) string {
 		if s.IsIndex {

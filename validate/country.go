@@ -1,6 +1,10 @@
 package validate
 
-import "golang.org/x/text/language"
+import (
+	"strings"
+
+	"golang.org/x/text/language"
+)
 
 func IsCountry(value string, args ...string) (bool, error) {
 	if len(value) != 2 {
@@ -10,6 +14,8 @@ func IsCountry(value string, args ...string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	// ParseRegion accepts numeric and alpha-3 too — require canonical alpha-2.
-	return r.String() == value, nil
+	// ParseRegion accepts numeric and alpha-3 too, which the length check above
+	// already turned away. What is left is case, and that is the client's to
+	// choose — currency folds it as well.
+	return strings.EqualFold(r.String(), value), nil
 }
