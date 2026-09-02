@@ -22,7 +22,7 @@ func (p *Plugin) Generate(structs []shared.StructInfo) (generator.Section, error
 	lexems := make([]lexem, 0, len(structs))
 	var warnings []string
 	for _, s := range structs {
-		lex, warns, err := walk(s)
+		lex, warns, err := walk(s, p.Format.Tag)
 		if err != nil {
 			return generator.Section{}, err
 		}

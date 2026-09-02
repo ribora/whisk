@@ -214,6 +214,23 @@ callers don't expect it, and letting a non-generated parent silently resolve
 `Parse` to the partial embedded one. whisk emits a **warning** for this and
 keeps going; prefer a named field to keep delegation explicit.
 
+**A mixin with body fields is read flat, and that costs a pass.** `encoding/json`
+only promotes the fields of *anonymous* embedded structs, so a named field is
+looked up by its own name — a body of `{"page":1,"count":10,"name":"go"}` never
+reaches `s.Page.Page` through the parent's unmarshal. The mixin's own `Parse`
+does it, decoding the same body again. So a parent with body fields and *n*
+body-carrying mixins decodes the body *n+1* times, each pass filling a disjoint
+set of fields. Not redundant work, but not free either; the way out would be
+anonymous embedding, which leaks `Parse` into the parent's method set.
+
+**A format name on the embed field is a codegen error.** `scan:"embed"` says the
+inner fields come flat from the same body; `json:"page"` says the field is a
+nested object. Both used to be honoured — the parent read the nested object, then
+the mixin's `Parse` overwrote it from the top level, so a value under `"page"`
+was silently discarded. Drop the name, or write `json:"-"` to keep the field out
+of the body entirely. The tag checked is whichever `-format` names, so `-format=xml`
+checks `xml` and ignores `json`.
+
 **Bordering check:** if a field's type carries `scan:` tags but the field
 isn't marked `scan:"embed"` (or `scan:"-"`), whisk **errors** at codegen —
 those tags would silently never populate when the parent decodes from body.

@@ -15,14 +15,14 @@ import (
 	"unicode/utf8"
 )
 
-func (s *Login) Parse(src scan.Source) error {
+func (s *Invite) Parse(src scan.Source) error {
 	if body := src.Body(); len(body) > 0 {
 		if err := json.Unmarshal(body, s); err != nil {
 			return failure.Wrap("%w: %w", scan.ErrPayload, err)
 		}
 	}
-	if v := src.Lookup("path", "userId"); v != "" {
-		s.UserID = v
+	if v := src.Lookup("path", "orgId"); v != "" {
+		s.OrgID = v
 	}
 	if v := src.Lookup("header", "Authorization"); v != "" {
 		s.Token = v
@@ -34,21 +34,21 @@ func (s *Login) Parse(src scan.Source) error {
 			s.Tags = append(s.Tags, v)
 		}
 	}
-	if v := src.Lookup("query", "page"); v != "" {
+	if v := src.Lookup("query", "ttl"); v != "" {
 		parsed, err := strconv.ParseInt(v, 10, 64)
 		if err != nil {
-			return failure.Wrap("%w: Page: %w", scan.ErrPayload, err)
+			return failure.Wrap("%w: TTL: %w", scan.ErrPayload, err)
 		}
-		s.Page = int(parsed)
+		s.TTL = int(parsed)
 	}
 	return nil
 }
 
-func (s *Login) Validate() error {
+func (s *Invite) Validate() error {
 	var errs []error
-	if s.UserID == "" {
+	if s.OrgID == "" {
 		errs = append(errs, &validate.ValidationError{
-			Segments: validate.Path{validate.NewFieldSegment("go", "UserID", "json", "user_id")},
+			Segments: validate.Path{validate.NewFieldSegment("go", "OrgID", "json", "org_id")},
 			Tag:      "required",
 			Kind:     validate.KindStr,
 		})
@@ -59,16 +59,6 @@ func (s *Login) Validate() error {
 			Tag:      "required",
 			Kind:     validate.KindStr,
 		})
-	}
-	if s.Token != "" {
-		if utf8.RuneCountInString(s.Token) < 8 {
-			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "Token", "json", "token")},
-				Tag:      "min",
-				Value:    "8",
-				Kind:     validate.KindStr,
-			})
-		}
 	}
 	if s.Email == "" {
 		errs = append(errs, &validate.ValidationError{
@@ -87,27 +77,19 @@ func (s *Login) Validate() error {
 			})
 		}
 	}
-	if s.Password == "" {
+	if s.Name == "" {
 		errs = append(errs, &validate.ValidationError{
-			Segments: validate.Path{validate.NewFieldSegment("go", "Password", "json", "password")},
+			Segments: validate.Path{validate.NewFieldSegment("go", "Name", "json", "name")},
 			Tag:      "required",
 			Kind:     validate.KindStr,
 		})
 	}
-	if s.Password != "" {
-		if utf8.RuneCountInString(s.Password) < 8 {
+	if s.Name != "" {
+		if utf8.RuneCountInString(s.Name) > 20 {
 			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "Password", "json", "password")},
-				Tag:      "min",
-				Value:    "8",
-				Kind:     validate.KindStr,
-			})
-		}
-		if utf8.RuneCountInString(s.Password) > 64 {
-			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "Password", "json", "password")},
+				Segments: validate.Path{validate.NewFieldSegment("go", "Name", "json", "name")},
 				Tag:      "max",
-				Value:    "64",
+				Value:    "20",
 				Kind:     validate.KindStr,
 			})
 		}
@@ -125,20 +107,20 @@ func (s *Login) Validate() error {
 			seenTags[v] = true
 		}
 	}
-	if s.Page != 0 {
-		if s.Page < 1 {
+	if s.TTL != 0 {
+		if s.TTL < 1 {
 			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "Page", "json", "page")},
+				Segments: validate.Path{validate.NewFieldSegment("go", "TTL", "json", "ttl")},
 				Tag:      "gte",
 				Value:    "1",
 				Kind:     validate.KindValue,
 			})
 		}
-		if s.Page > 100 {
+		if s.TTL > 30 {
 			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "Page", "json", "page")},
+				Segments: validate.Path{validate.NewFieldSegment("go", "TTL", "json", "ttl")},
 				Tag:      "lte",
-				Value:    "100",
+				Value:    "30",
 				Kind:     validate.KindValue,
 			})
 		}

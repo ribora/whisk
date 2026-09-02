@@ -130,6 +130,52 @@ type Req struct {
 	}
 }
 
+// Both were honoured: the parent read the field as a nested object, then the
+// embed's own Parse read the same body flat over it.
+func TestGenerate_embedWithFormatNameErrors(t *testing.T) {
+	runScanExpectError(t, `package sample
+type Page struct {
+	Cursor string `+"`json:\"cursor\"`"+`
+}
+type Req struct {
+	Page Page   `+"`scan:\"embed\" json:\"page\"`"+`
+	Name string `+"`json:\"name\"`"+`
+}
+`, `scan:"embed" and json:"page" contradict each other`)
+}
+
+// The name is what conflicts. `-` says "not in the body", which is what a flat
+// mixin means, and an option without a name renames nothing.
+func TestGenerate_embedWithFormatDashIsFine(t *testing.T) {
+	for _, tag := range []string{`scan:"embed" json:"-"`, `scan:"embed" json:",omitempty"`} {
+		sec := runScan(t, `package sample
+type Page struct {
+	Cursor string `+"`json:\"cursor\"`"+`
+}
+type Req struct {
+	Page Page   `+"`"+tag+"`"+`
+	Name string `+"`json:\"name\"`"+`
+}
+`, scan.FormatJSON)
+		must(t, string(sec.Code), "s.Page.Parse(src)")
+	}
+}
+
+// The tag whisk reads follows -format, so xml is checked against xml.
+func TestGenerate_embedWithFormatNameFollowsTheFormat(t *testing.T) {
+	// json is not the body format here, so its name says nothing about the body.
+	sec := runScan(t, `package sample
+type Page struct {
+	Cursor string `+"`xml:\"cursor\"`"+`
+}
+type Req struct {
+	Page Page   `+"`scan:\"embed\" json:\"page\"`"+`
+	Name string `+"`xml:\"name\"`"+`
+}
+`, scan.FormatXML)
+	must(t, string(sec.Code), "s.Page.Parse(src)")
+}
+
 func TestGenerate_embedDelegateAfterBody(t *testing.T) {
 	// Security regression (IDOR): when body unmarshal IS emitted (the
 	// struct has a bucket-1 field), it must run BEFORE the embed delegate.
