@@ -9,9 +9,7 @@ import (
 )
 
 // The golden suite builds plugins directly, so nothing there covers main: flag
-// parsing, whisk.yaml, and the two resolveDir calls that turn a configured
-// directory into an import path. A setting that reaches none of them would still
-// pass every other test in this package.
+// parsing, whisk.yaml, and the resolveDir calls between them.
 
 func whiskBinary(t *testing.T) string {
 	t.Helper()
@@ -24,8 +22,8 @@ func whiskBinary(t *testing.T) string {
 	return bin
 }
 
-// A module with one model and a custom validator in a directory that is not the
-// default, so only configuration can connect them.
+// The validator sits outside the default directory, so only configuration can
+// connect it to the model.
 func project(t *testing.T, storageDir string) string {
 	t.Helper()
 	root := t.TempDir()
@@ -88,8 +86,8 @@ func TestConfigFileReachesTheGenerator(t *testing.T) {
 	}
 }
 
-// Without the file the same project cannot resolve the tag — which is what makes
-// the test above about the file and not about a default that happened to match.
+// The negative control: without the file the same project fails, so the test
+// above is about the file and not about a default that happened to match.
 func TestWithoutTheConfigFileTheTagIsUnresolved(t *testing.T) {
 	bin := whiskBinary(t)
 	root := project(t, "internal/checks")
