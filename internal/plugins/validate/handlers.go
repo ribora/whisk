@@ -8,7 +8,6 @@ import (
 // Prefix is what a field name is written after: "s." at the top, "v." inside a
 // dive.
 type context struct {
-	StoragePath string
 	Prefix      string
 	CaptureErr  bool
 	IsRequired  bool
@@ -20,7 +19,6 @@ type context struct {
 // are relative to the element and errors are collected rather than returned.
 func (c context) forElement(prefix string) context {
 	return context{
-		StoragePath: c.StoragePath,
 		Prefix:      prefix,
 		CaptureErr:  true,
 		ExtractTags: c.ExtractTags,

@@ -76,7 +76,7 @@ type errorCase struct {
 
 var errorCases = []errorCase{
 	{dir: "err_bordering", errContains: `not marked scan:"embed"`},
-	{dir: "err_bad_tag", errContains: "unsupported validator tag"},
+	{dir: "err_bad_tag", errContains: `unknown validator tag "bogusvalidator"`},
 	{dir: "err_pointer_embed", errContains: "on a pointer field"},
 	{dir: "err_time_eq", errContains: "doesn't make sense for time field"},
 }

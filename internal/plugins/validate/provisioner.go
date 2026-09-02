@@ -6,10 +6,10 @@ import (
 	"gitlab.com/gorib/whisk/internal/shared"
 )
 
-// tag "passcode" -> storagePath/passcode.go, func IsPasscode(…). A second
+// tag "passcode" -> func IsPasscode(…) in any file of the storage dir. A second
 // result of error switches the emitter to the form that keeps it.
-func isCustomValidator(tag, storagePath string) (found, returnsErr bool) {
-	fn := shared.FindFunc(storagePath, tag+".go", "Is"+shared.PascalCase(tag))
+func isCustomValidator(idx shared.FuncIndex, tag string) (found, returnsErr bool) {
+	fn := idx[customFuncName(tag)]
 	if fn == nil {
 		return false, false
 	}
@@ -21,3 +21,5 @@ func isCustomValidator(tag, storagePath string) (found, returnsErr bool) {
 	}
 	return true, false
 }
+
+func customFuncName(tag string) string { return "Is" + shared.PascalCase(tag) }

@@ -2,7 +2,11 @@ package validate
 
 import (
 	"bytes"
+	"cmp"
+	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"gitlab.com/gorib/whisk/internal/generator"
@@ -11,8 +15,10 @@ import (
 )
 
 type Options struct {
-	// validate:"passcode" -> <StoragePath>/passcode.go, func IsPasscode(…) bool
+	// validate:"passcode" -> func IsPasscode(…) bool in any file under StoragePath
 	StoragePath string
+	// StoragePath as configured: a diagnostic names what the author typed
+	StorageLabel string
 	// import path of StoragePath; required once anything is found there
 	UserChecksImport string
 	// tag keys whose names join "go" in a path segment: json, xml, …
@@ -48,6 +54,8 @@ func (p *Plugin) Generate(structs []shared.StructInfo) (generator.Section, error
 	}
 	var prepList []prepared
 	usedTags := map[string]struct{}{}
+	// So a failed resolve names a field instead of leaving the author to grep.
+	firstUse := map[string]string{}
 	for _, s := range structs {
 		fields := make([]field, len(s.Fields))
 		for i, f := range s.Fields {
@@ -65,8 +73,12 @@ func (p *Plugin) Generate(structs []shared.StructInfo) (generator.Section, error
 		})
 		for _, f := range fields {
 			for _, t := range f.ParsedTags {
-				if t.Name != "" {
-					usedTags[t.Name] = struct{}{}
+				if t.Name == "" {
+					continue
+				}
+				usedTags[t.Name] = struct{}{}
+				if _, seen := firstUse[t.Name]; !seen {
+					firstUse[t.Name] = s.Name + "." + f.Name
 				}
 			}
 		}
@@ -75,23 +87,40 @@ func (p *Plugin) Generate(structs []shared.StructInfo) (generator.Section, error
 		return generator.Section{}, nil
 	}
 
+	idx, err := shared.IndexFuncs(p.opts.StoragePath)
+	if err != nil {
+		return generator.Section{}, err
+	}
+
 	// The storage path is consulted first: a user's Is<Tag> is meant to win over
-	// the built-in of the same name.
+	// the built-in of the same name. Sorted, or warnings and errors would come out
+	// in a different order on every run.
 	resolutions := map[string]tagResolution{}
 	hasUserChecks := false
-	for tag := range usedTags {
+	var warnings []string
+	var unknown []error
+	for _, tag := range slices.Sorted(maps.Keys(usedTags)) {
 		if _, isBuiltinFlow := builtinFlowTags[tag]; isBuiltinFlow {
 			continue
 		}
-		if isCustom, retErr := isCustomValidator(tag, p.opts.StoragePath); isCustom {
+		if isCustom, retErr := isCustomValidator(idx, tag); isCustom {
 			resolutions[tag] = tagResolution{Prefix: userChecksAlias, ReturnsError: retErr, Supported: true}
 			hasUserChecks = true
+			// The one case where the model's reader cannot tell which check runs.
+			if _, shadowed := wvalidate.BuiltIns[tag]; shadowed {
+				warnings = append(warnings, fmt.Sprintf("%s.%s overrides the built-in %q validator",
+					userChecksAlias, customFuncName(tag), tag))
+			}
 			continue
 		}
 		if retErr, ok := wvalidate.BuiltIns[tag]; ok {
 			resolutions[tag] = tagResolution{Prefix: "validate", ReturnsError: retErr, Supported: true}
 			continue
 		}
+		unknown = append(unknown, p.unknownTagError(tag, firstUse[tag], idx))
+	}
+	if len(unknown) > 0 {
+		return generator.Section{}, errors.Join(unknown...)
 	}
 
 	gen := newDispatcher(resolutions)
@@ -104,7 +133,23 @@ func (p *Plugin) Generate(structs []shared.StructInfo) (generator.Section, error
 	}
 
 	imports := neededImports(code.String(), hasUserChecks, p.opts.UserChecksImport)
-	return generator.Section{Code: code.Bytes(), Imports: imports}, nil
+	return generator.Section{Code: code.Bytes(), Imports: imports, Warnings: warnings}, nil
+}
+
+// Raised here rather than in the dispatcher: this is the only place that knows
+// where it looked.
+func (p *Plugin) unknownTagError(tag, use string, idx shared.FuncIndex) error {
+	where := ""
+	if use != "" {
+		where = use + ": "
+	}
+	label := cmp.Or(p.opts.StorageLabel, p.opts.StoragePath)
+	if label == "" {
+		return fmt.Errorf("%sunknown validator tag %q: not a built-in, and no storage directory is configured to hold %s",
+			where, tag, customFuncName(tag))
+	}
+	return fmt.Errorf("%sunknown validator tag %q: not a built-in, and no func %s in %s %s; point -validate.storage or whisk.yaml's validate.storage at the right directory",
+		where, tag, customFuncName(tag), label, shared.SearchNote(p.opts.StoragePath, "Is", idx))
 }
 
 // Wired unconditionally, so they never need resolving to an Is<Tag>.

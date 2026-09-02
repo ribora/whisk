@@ -3,8 +3,8 @@ package scan
 import "flag"
 
 type Config struct {
-	// -format=toml -> <ExtractorDir>/toml.go, func UnmarshalToml([]byte, any) error
-	ExtractorDir string
+	// -format=toml -> func UnmarshalToml([]byte, any) error under ExtractorDir
+	ExtractorDir string `yaml:"extractor"`
 }
 
 func DefaultConfig() Config {

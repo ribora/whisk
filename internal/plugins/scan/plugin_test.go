@@ -342,7 +342,7 @@ type Root struct {
 
 func TestResolveFormat_builtins(t *testing.T) {
 	for _, name := range []string{"", "json", "xml"} {
-		f, err := scan.ResolveFormat(name, "", "")
+		f, err := scan.ResolveFormat(name, scan.Extractor{})
 		if err != nil {
 			t.Fatalf("ResolveFormat(%q): %v", name, err)
 		}
@@ -352,26 +352,57 @@ func TestResolveFormat_builtins(t *testing.T) {
 	}
 }
 
+// The extractor is found by func name; the file name carries nothing.
 func TestResolveFormat_customExtractor(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "toml.go"),
-		[]byte("package x\nfunc UnmarshalToml(b []byte, v any) error { return nil }\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	f, err := scan.ResolveFormat("toml", dir, "mod/pkg/scan")
-	if err != nil {
-		t.Fatalf("ResolveFormat: %v", err)
-	}
-	want := generator.Import{Alias: "bodyfmt", Path: "mod/pkg/scan"}
-	if f.Tag != "toml" || f.Import != want || f.Unmarshal != "bodyfmt.UnmarshalToml" {
-		t.Errorf("unexpected Format: %+v", f)
+	for _, file := range []string{"toml.go", "formats.go"} {
+		t.Run(file, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, file),
+				[]byte("package x\nfunc UnmarshalToml(b []byte, v any) error { return nil }\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			f, err := scan.ResolveFormat("toml", scan.Extractor{Dir: dir, Label: "pkg/scan", Import: "mod/pkg/scan"})
+			if err != nil {
+				t.Fatalf("ResolveFormat: %v", err)
+			}
+			want := generator.Import{Alias: "bodyfmt", Path: "mod/pkg/scan"}
+			if f.Tag != "toml" || f.Import != want || f.Unmarshal != "bodyfmt.UnmarshalToml" {
+				t.Errorf("unexpected Format: %+v", f)
+			}
+		})
 	}
 }
 
+// Named as configured ("pkg/scan"), not as the abs path nobody typed.
 func TestResolveFormat_unknownFormatErrors(t *testing.T) {
-	_, err := scan.ResolveFormat("toml", t.TempDir(), "mod/pkg/scan")
-	if err == nil || !strings.Contains(err.Error(), "UnmarshalToml") {
-		t.Fatalf("expected an error naming UnmarshalToml, got %v", err)
+	_, err := scan.ResolveFormat("toml", scan.Extractor{Dir: t.TempDir(), Label: "pkg/scan", Import: "mod/pkg/scan"})
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	for _, want := range []string{"UnmarshalToml", "pkg/scan", "no Unmarshal* funcs there"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not mention %q", err, want)
+		}
+	}
+}
+
+func TestResolveFormat_missingExtractorDir(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "absent")
+	_, err := scan.ResolveFormat("toml", scan.Extractor{Dir: dir, Label: "pkg/scan", Import: "mod/pkg/scan"})
+	if err == nil || !strings.Contains(err.Error(), "directory does not exist") {
+		t.Fatalf("expected the error to report the missing directory, got %v", err)
+	}
+}
+
+// A broken file used to read as "format not found" — the wrong bug to chase.
+func TestResolveFormat_unparseableExtractor(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "toml.go"), []byte("package x\nfunc UnmarshalToml("), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := scan.ResolveFormat("toml", scan.Extractor{Dir: dir, Label: "pkg/scan", Import: "mod/pkg/scan"})
+	if err == nil || !strings.Contains(err.Error(), "parse") {
+		t.Fatalf("expected a parse error, got %v", err)
 	}
 }
 

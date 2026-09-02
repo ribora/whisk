@@ -2,6 +2,7 @@ package validate_test
 
 import (
 	"go/format"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -345,15 +346,82 @@ type R struct {
 `, "required tag doesn't make sense for bool")
 }
 
-func TestGenerate_unsupportedTag(t *testing.T) {
+// Named field, so the author does not have to grep for the tag.
+func TestGenerate_unknownTag(t *testing.T) {
 	runValidateExpectError(t, `package sample
 type R struct {
 	X string `+"`validate:\"required,bogusvalidator\"`"+`
 }
-`, "unsupported validator tag")
+`, `R.X: unknown validator tag "bogusvalidator"`)
+}
+
+// The tag maps to a func name, not to a file name.
+func TestGenerate_customValidatorInAnyFile(t *testing.T) {
+	storage := t.TempDir()
+	writeChecks(t, storage, "rules.go", "func IsPasscode(v string, args ...string) bool { return true }")
+
+	sec := runValidate(t, `package sample
+type R struct {
+	Code string `+"`validate:\"passcode\"`"+`
+}
+`, validate.Options{StoragePath: storage, StorageLabel: "pkg/validate", UserChecksImport: "mod/pkg/validate"})
+
+	must(t, string(sec.Code), "checks.IsPasscode(s.Code)")
+	if len(sec.Warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", sec.Warnings)
+	}
+}
+
+// The one case where the model's reader cannot tell which check runs.
+func TestGenerate_overridingBuiltInWarns(t *testing.T) {
+	storage := t.TempDir()
+	writeChecks(t, storage, "rules.go", "func IsEmail(v string, args ...string) bool { return true }")
+
+	sec := runValidate(t, `package sample
+type R struct {
+	Mail string `+"`validate:\"email\"`"+`
+}
+`, validate.Options{StoragePath: storage, StorageLabel: "pkg/validate", UserChecksImport: "mod/pkg/validate"})
+
+	must(t, string(sec.Code), "checks.IsEmail(s.Mail)")
+	if len(sec.Warnings) != 1 || !strings.Contains(sec.Warnings[0], `overrides the built-in "email"`) {
+		t.Errorf("warnings = %v, want one about overriding email", sec.Warnings)
+	}
+}
+
+// A near miss (IsPassCode) is the case the search note exists for.
+func TestGenerate_unknownTagNamesTheSearch(t *testing.T) {
+	storage := t.TempDir()
+	writeChecks(t, storage, "rules.go", "func IsPassCode(v string) bool { return true }")
+
+	dir := testmodule.New(t, `package sample
+type R struct {
+	Code string `+"`validate:\"passcode\"`"+`
+}
+`)
+	_, structs, err := shared.Load(dir, filepath.Join(dir, "sample.go"))
+	if err != nil {
+		t.Fatalf("shared.Load: %v", err)
+	}
+	_, err = validate.New(validate.Options{StoragePath: storage, StorageLabel: "pkg/validate"}).Generate(structs)
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	for _, want := range []string{"IsPasscode", "pkg/validate", "found there: IsPassCode"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not mention %q", err, want)
+		}
+	}
 }
 
 // ---- helpers ----
+
+func writeChecks(t *testing.T, dir, file, body string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, file), []byte("package checks\n\n"+body+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func must(t *testing.T, haystack string, needles ...string) {
 	t.Helper()

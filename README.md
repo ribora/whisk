@@ -325,11 +325,12 @@ func (o Order) validate() error {
 
 ### Custom validators
 
-Drop a file named after the tag into the storage directory (default
-`pkg/validate` at the module root), exporting `Is<PascalTag>`:
+Export `Is<PascalTag>` from any file in the storage directory (default
+`pkg/validate` at the module root) — the lookup is by func name, so the file can
+be called whatever suits the package:
 
 ```go
-// pkg/validate/passcode.go
+// pkg/validate/rules.go
 package validate
 
 func IsPasscode(value string, args ...string) bool {
@@ -344,10 +345,27 @@ the alias `checks`). Signatures:
 - `func IsTag(value T, args ...string) (bool, error)` — the error is stashed
   into `ValidationError.Err` for the consumer to unwrap
 
-A custom validator whose name collides with a built-in **wins** — that's how
-you override a default without forking whisk. The storage dir is set with
-`-validate.storage`; a nonexistent dir simply means no custom validators (a
-referenced-but-unresolvable tag is a codegen error).
+A custom validator whose name collides with a built-in **wins** — that's how you
+override a default without forking whisk. Since that's the one case where the
+model's reader can't tell which check runs, whisk says so:
+
+```
+whisk: warning: checks.IsEmail overrides the built-in "email" validator
+```
+
+The storage dir is set with `-validate.storage` or `validate.storage` in
+[whisk.yaml](#whiskyaml). A nonexistent dir simply means no custom validators —
+nothing was promised, so nothing is reported. A tag that resolves to neither a
+built-in nor a validator **is** a codegen error, and it names where it looked:
+
+```
+whisk: plugin validate: Auth.Code: unknown validator tag "passcode": not a
+built-in, and no func IsPasscode in pkg/validate (found there: IsPassCode);
+point -validate.storage or whisk.yaml's validate.storage at the right directory
+```
+
+A file in the storage dir that doesn't parse is an error too, rather than a
+silent miss that reports every tag in the project as unknown.
 
 ## Errors
 
@@ -394,12 +412,12 @@ turning validation errors into a `422` with a JSON path/tag/value/kind list and
 ## Custom body format
 
 `json` and `xml` are built in. Any other `-format` name must be backed by a
-**custom extractor** — a Go function that decodes the body. Drop a file named
-after the format into the extractor directory (default `pkg/scan` at the module
-root), declaring `func Unmarshal<PascalFormat>(b []byte, v any) error`:
+**custom extractor** — a Go function that decodes the body. Declare
+`func Unmarshal<PascalFormat>(b []byte, v any) error` in any file of the
+extractor directory (default `pkg/scan` at the module root):
 
 ```go
-// pkg/scan/toml.go
+// pkg/scan/formats.go
 package scan
 
 import "github.com/BurntSushi/toml"
@@ -424,7 +442,11 @@ The signature `(b []byte, v any) error` is the universal decoder shape, so most
 libraries (`toml`, `yaml`, `msgpack`, …) plug in with a one-line wrapper. The
 format name also becomes the struct-tag whisk reads for path segments — so a
 `toml` format pairs with `toml:"..."` field tags and `toml`-named error paths.
-A `-format` that's neither built in nor found in the extractor dir is an error.
+A `-format` that's neither built in nor found in the extractor dir is an error
+naming the directory it searched.
+
+`-format` takes one name. A model is parsed from one body format, and that same
+name picks the tag whose field names appear in error paths.
 
 This mirrors custom validators: convention directory, name-based lookup, no
 flags describing the function inline.
@@ -433,6 +455,7 @@ flags describing the function inline.
 
 ```
 whisk [-format NAME] [-scan.extractor DIR] [-validate.storage DIR] [FILE]
+whisk init
 
   -format            body format: json | xml | <custom>  (default json)
   -scan.extractor    dir of custom body-format extractors (Unmarshal<Format>),
@@ -441,6 +464,7 @@ whisk [-format NAME] [-scan.extractor DIR] [-validate.storage DIR] [FILE]
                      relative to the project root         (default pkg/validate)
 
   FILE               target source file; defaults to $GOFILE
+  init               write whisk.yaml at the module root
 ```
 
 Flags follow a two-tier rule:
@@ -461,6 +485,42 @@ Path-segment tags are **not** a flag — they're derived from `-format`.
 //go:generate whisk -format=toml $GOFILE             // custom extractor in pkg/scan
 //go:generate whisk -validate.storage=internal/checks $GOFILE
 ```
+
+## whisk.yaml
+
+Project-wide settings live in `whisk.yaml` at the module root, so the paths are
+stated once and reviewed like any other file instead of being repeated on every
+`go:generate` line. `whisk init` writes it:
+
+```yaml
+# whisk.yaml — project settings for the whisk generator.
+# These are whisk's defaults, written out so the paths are visible. Drop a line
+# to follow the default instead; a flag on a go:generate line overrides both.
+
+format: json             # json | xml | <custom, see scan.extractor>
+
+scan:
+  extractor: pkg/scan    # dir holding func Unmarshal<Format>([]byte, any) error
+
+validate:
+  storage: pkg/validate  # dir holding func Is<Tag>(value, args ...string) bool
+```
+
+Each section is the plugin's own, matching its flag namespace: `-scan.extractor`
+is `scan.extractor` here. Precedence is **flag > whisk.yaml > default** — a value
+from the file applies only where the invocation didn't pass the flag, so a
+per-file override on a `go:generate` line keeps working.
+
+- **No file is a normal project.** Missing `whisk.yaml` is identical to
+  all-defaults, silently: nothing was promised, so there is nothing to warn
+  about. Requiring the file would tax every project that uses no custom
+  validators — most of them.
+- **An unknown key is an error**, at the top level or in a section. A typo can
+  never be intended, and a config that silently means something else is worse
+  than no config.
+- **`whisk init` never overwrites.** A second run reports the file it left alone.
+- A written value **pins** that setting; dropping the line follows whisk's
+  default.
 
 ## Generated code shape
 

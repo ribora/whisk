@@ -3,9 +3,10 @@ package validate
 import "flag"
 
 // Resolved into Options by the composition root, together with the inputs no
-// single plugin owns.
+// single plugin owns. The yaml key is whisk.yaml's spelling of the same flag, so
+// both live with the plugin that reads them.
 type Config struct {
-	StorageDir string
+	StorageDir string `yaml:"storage"`
 }
 
 func DefaultConfig() Config {

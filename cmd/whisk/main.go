@@ -4,6 +4,8 @@
 //	//go:generate whisk $GOFILE
 //	//go:generate whisk -format=xml $GOFILE
 //	//go:generate whisk -validate.storage=internal/checks $GOFILE
+//
+// Project-wide settings live in whisk.yaml (`whisk init`); see the README.
 package main
 
 import (
@@ -25,7 +27,7 @@ type flagBinder interface {
 func main() {
 	// -format is cross-cutting (scan's decoder + validate's path tags), so it
 	// stays top-level rather than under a -<plugin>. namespace.
-	formatName := flag.String("format", "json", "body format: json | xml")
+	formatName := flag.String("format", "json", "body format: json | xml | <custom, see -scan.extractor>")
 
 	// Plugin-scoped flags register under the plugin's name. Add swagger etc.
 	// to this table as they gain flags.
@@ -40,6 +42,13 @@ func main() {
 	}
 
 	flag.Parse()
+
+	if args := flag.Args(); len(args) == 1 && args[0] == "init" {
+		if err := runInit(); err != nil {
+			die("%v", err)
+		}
+		return
+	}
 
 	target, err := pickTarget(flag.Args())
 	if err != nil {
@@ -63,8 +72,20 @@ func main() {
 		die("%v", err)
 	}
 
+	// After Parse, because the file lives at the root and the root is found from
+	// the target — which is a positional argument.
+	cfg, err := loadProjectConfig(root)
+	if err != nil {
+		die("%v", err)
+	}
+	applyProjectConfig(cfg, setFlags(flag.CommandLine), formatName, &scanCfg, &validateCfg)
+
 	extractorAbs, extractorImport := resolveDir(root, module, scanCfg.ExtractorDir)
-	format, err := scan.ResolveFormat(*formatName, extractorAbs, extractorImport)
+	format, err := scan.ResolveFormat(*formatName, scan.Extractor{
+		Dir:    extractorAbs,
+		Label:  scanCfg.ExtractorDir,
+		Import: extractorImport,
+	})
 	if err != nil {
 		die("%v", err)
 	}
@@ -74,6 +95,7 @@ func main() {
 		scan.New(format),
 		validate.New(validate.Options{
 			StoragePath:      storageAbs,
+			StorageLabel:     validateCfg.StorageDir,
 			UserChecksImport: userChecksImport,
 			// Path segments use the body format's tag names (json/xml/custom).
 			ExtractTags: []string{format.Tag},
