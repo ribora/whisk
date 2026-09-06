@@ -6,6 +6,8 @@
 //	//go:generate whisk -validate.storage=internal/checks $GOFILE
 //
 // Project-wide settings live in whisk.yaml (`whisk init`); see the README.
+// `whisk tags` prints what a validate tag and -format may say in this project,
+// built-ins and the project's own together.
 package main
 
 import (
@@ -45,6 +47,15 @@ func main() {
 
 	if args := flag.Args(); len(args) == 1 && args[0] == "init" {
 		if err := runInit(); err != nil {
+			die("%v", err)
+		}
+		return
+	}
+
+	// Before pickTarget, because this one reads no file: the project is the one
+	// the working directory belongs to.
+	if args := flag.Args(); len(args) == 1 && args[0] == "tags" {
+		if err := listTags(setFlags(flag.CommandLine), scanCfg, validateCfg); err != nil {
 			die("%v", err)
 		}
 		return

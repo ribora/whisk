@@ -292,7 +292,11 @@ element then reports `required` alone rather than `required` and `min` together.
 `lowercase`, `uppercase`, `contains=X`, `startswith=X`, `endswith=X`,
 `ip` (`ip=v4`/`ip=v6`), `cidr`, `hostname`, `fqdn`, `mac`, `base64`, `json`,
 `phone`, `semver`, `timezone`, `duration`, `hexcolor`, `currency`, `country`,
-`locale`. (27 built-ins — see `validate/registry.go`.)
+`locale`.
+
+This is what whisk brings. What a tag may say in a *particular* project is that
+plus whatever its storage directory holds, and `whisk tags` prints the two
+together — see [whisk tags](#whisk-tags).
 
 ### Collections
 
@@ -473,6 +477,7 @@ flags describing the function inline.
 ```
 whisk [-format NAME] [-scan.extractor DIR] [-validate.storage DIR] [FILE]
 whisk init
+whisk tags
 
   -format            body format: json | xml | <custom>  (default json)
   -scan.extractor    dir of custom body-format extractors (Unmarshal<Format>),
@@ -482,6 +487,37 @@ whisk init
 
   FILE               target source file; defaults to $GOFILE
   init               write whisk.yaml at the module root
+  tags               print what a validate tag and -format may say here
+```
+
+### whisk tags
+
+Writing a tag that does not exist is already a generation error naming the tag,
+the line and the directory searched. The reverse is not caught, and it is the
+common mistake: a check whisk or the project already has, written again by hand
+in a handler because nobody knew it was there.
+
+`whisk tags` answers that, and it is the only thing that can. The built-ins are
+whisk's, the custom ones are the project's, and *which* directory is the
+project's follows **flag > whisk.yaml > default** — so no document can list them
+and reading the source means resolving that chain first. The listing groups them
+by where the check comes from, names the `Is<Tag>` behind each one, says which
+of the three sources decided the directory, and marks two things that would
+otherwise mislead:
+
+- a custom check **shadowing** a built-in of the same name, listed once, under
+  the custom entry that actually answers it;
+- a function **no tag can reach** — `Ispasscode` where `IsPasscode` was meant.
+  The generator would not find it either, so a directory it sits in looks wired
+  and is not.
+
+It reads no source file and resolves the project from the working directory,
+which means it cannot see a `-validate.storage` passed on one `//go:generate`
+line. The report says so. To ask about that directory, pass the flag — **before**
+the subcommand, since Go's flag parsing stops at the first operand:
+
+```
+whisk -validate.storage=internal/checks tags
 ```
 
 Flags follow a two-tier rule:

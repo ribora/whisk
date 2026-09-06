@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -93,4 +94,26 @@ func TestBuiltInsMatchTheFunctions(t *testing.T) {
 // The inverse of "Is" + PascalCase, which holds because every tag is one word.
 func tagOf(fn string) string {
 	return strings.ToLower(strings.TrimPrefix(fn, "Is"))
+}
+
+// The README used to carry a count of the built-ins, which was wrong by one and
+// had nothing keeping it honest. `whisk tags` prints the real list, so the count
+// is gone — but the README still names them for a reader who has no project to
+// run it in, and that naming is what drifts when a built-in is added. This is
+// the guard the number was pretending to be.
+func TestReadmeNamesEveryBuiltIn(t *testing.T) {
+	readme, err := os.ReadFile(filepath.Join("..", "README.md"))
+	if err != nil {
+		t.Fatalf("read README: %v", err)
+	}
+	body := string(readme)
+
+	for tag := range validate.BuiltIns {
+		// Backticked, and either bare or carrying its argument syntax —
+		// `datetime=<layout>` documents `datetime`.
+		if strings.Contains(body, "`"+tag+"`") || strings.Contains(body, "`"+tag+"=") {
+			continue
+		}
+		t.Errorf("BuiltIns has %q but the README never names it — add it to the tag list", tag)
+	}
 }
