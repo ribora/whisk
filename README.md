@@ -58,7 +58,7 @@ mux.Post("/login", server.Bind(func(ctx context.Context, req *model.LoginRequest
 }))
 
 // Or bind manually inside a raw handler:
-req, err := server.Into[model.LoginRequest](server.From(r))
+req, err := scan.Into[model.LoginRequest](server.From(r))
 if err != nil { return err }
 ```
 
