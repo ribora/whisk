@@ -1,10 +1,13 @@
-.PHONY: test audit golden
+.PHONY: test audit golden bench
 .IGNORE: audit
 
 all: audit test
 
 test:
 	@go test ./...
+
+bench:
+	@go test -run=- -bench=. -benchmem ./testdata/cases/basic
 
 # Rewrites the goldens, so it is not part of all: run it when the change to the
 # generator is the intended one, then read the diff.

@@ -161,6 +161,7 @@ func TestErrors(t *testing.T) {
 // proves the code. A nil receiver in a generated loop compiles fine and only
 // fails when something calls it.
 var runnableCases = []string{
+	"basic",
 	"named_scalars",
 	"narrow_scalars",
 	"text_unmarshal",
