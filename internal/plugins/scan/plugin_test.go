@@ -76,7 +76,7 @@ type Req struct {
 		`src.Lookup("query", "page")`,
 		`src.Lookup("header", "Authorization")`,
 		`src.Lookup("query", "active")`,
-		`strconv.ParseInt(v, 10, 64)`,
+		`strconv.ParseInt(v, 10, 0)`, // 0 is strconv's platform width
 		`strconv.ParseBool(v)`,
 		`s.UserID = v`,
 	)
@@ -108,7 +108,7 @@ type Req struct {
 	must(t, code,
 		`src.Lookup("query", "ids")`,
 		`strings.Split(v, ",")`,
-		"strconv.ParseInt(p, 10, 64)",
+		"strconv.ParseInt(p, 10, 0)",
 	)
 	wantImports(t, sec.Imports, "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan", "strconv", "strings")
 }

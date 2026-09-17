@@ -35,7 +35,7 @@ func (s *Invite) Parse(src scan.Source) error {
 		}
 	}
 	if v := src.Lookup("query", "ttl"); v != "" {
-		parsed, err := strconv.ParseInt(v, 10, 64)
+		parsed, err := strconv.ParseInt(v, 10, 0)
 		if err != nil {
 			return failure.Wrap("%w: TTL: %w", scan.ErrPayload, err)
 		}

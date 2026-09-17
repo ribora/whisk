@@ -43,11 +43,11 @@ func emitDecode(sb *strings.Builder, input string, t target, kind, ind string) {
 	case "string":
 		fmt.Fprintf(sb, "%s%s\n", ind, t.put(convert(t.typ, kind, input)))
 	case "int", "int8", "int16", "int32", "int64":
-		parse("parsed, err := strconv.ParseInt(%s, 10, %d)", input, bitSize(t.typ))
+		parse("parsed, err := strconv.ParseInt(%s, 10, %d)", input, bitSize(kind))
 	case "uint", "uint8", "uint16", "uint32", "uint64":
-		parse("parsed, err := strconv.ParseUint(%s, 10, %d)", input, bitSize(t.typ))
+		parse("parsed, err := strconv.ParseUint(%s, 10, %d)", input, bitSize(kind))
 	case "float32", "float64":
-		parse("parsed, err := strconv.ParseFloat(%s, %d)", input, bitSize(t.typ))
+		parse("parsed, err := strconv.ParseFloat(%s, %d)", input, bitSize(kind))
 	case "bool":
 		fmt.Fprintf(sb, "%sparsed, err := strconv.ParseBool(%s)\n", ind, input)
 		emitWrapErr(sb, t.name, ind)
@@ -72,16 +72,16 @@ func emitWrapErr(sb *strings.Builder, name, ind string) {
 	fmt.Fprintf(sb, "%s}\n", ind)
 }
 
-// int and uint parse as 64-bit so a value fits on a 64-bit host; the cast back
-// narrows to the platform width.
-func bitSize(typ string) int {
-	switch typ {
+func bitSize(kind string) int {
+	switch kind {
 	case "int8", "uint8":
 		return 8
 	case "int16", "uint16":
 		return 16
 	case "int32", "uint32", "float32":
 		return 32
+	case "int", "uint":
+		return 0 // strconv's platform width
 	}
 	return 64
 }

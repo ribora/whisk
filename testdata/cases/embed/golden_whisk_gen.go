@@ -21,14 +21,14 @@ func (s *Auth) Parse(src scan.Source) error {
 
 func (s *Pagination) Parse(src scan.Source) error {
 	if v := src.Lookup("query", "page"); v != "" {
-		parsed, err := strconv.ParseInt(v, 10, 64)
+		parsed, err := strconv.ParseInt(v, 10, 0)
 		if err != nil {
 			return failure.Wrap("%w: Page: %w", scan.ErrPayload, err)
 		}
 		s.Page = int(parsed)
 	}
 	if v := src.Lookup("query", "per_page"); v != "" {
-		parsed, err := strconv.ParseInt(v, 10, 64)
+		parsed, err := strconv.ParseInt(v, 10, 0)
 		if err != nil {
 			return failure.Wrap("%w: PerPage: %w", scan.ErrPayload, err)
 		}

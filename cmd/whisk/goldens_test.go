@@ -41,6 +41,7 @@ type caseSpec struct {
 var successCases = []caseSpec{
 	{dir: "basic", format: scan.FormatJSON},
 	{dir: "named_scalars", format: scan.FormatJSON},
+	{dir: "narrow_scalars", format: scan.FormatJSON},
 	{dir: "zero_guards", format: scan.FormatJSON},
 	{dir: "text_unmarshal", format: scan.FormatJSON},
 	{dir: "embed", format: scan.FormatJSON},
@@ -161,6 +162,7 @@ func TestErrors(t *testing.T) {
 // fails when something calls it.
 var runnableCases = []string{
 	"named_scalars",
+	"narrow_scalars",
 	"text_unmarshal",
 	"zero_guards",
 }

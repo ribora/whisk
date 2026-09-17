@@ -154,7 +154,9 @@ too, add the stdlib `json:"-"` / `xml:"-"`.
 
 For basic kinds the call is picked by the **underlying** kind and the conversion
 names the declared type, so `type Status string` and `[]Status` bind without a
-hook.
+hook. The width comes from that kind too, so `type Small int8` refuses `300`
+exactly as a plain `int8` does rather than wrapping it to `44`; `int` and `uint`
+are parsed at the platform width.
 
 `encoding.TextUnmarshaler` **wins over that**: a type that declares a text
 decoder means to be built through it, and converting around it would silently

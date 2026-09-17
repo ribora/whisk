@@ -37,7 +37,7 @@ func (s *Request) Parse(src scan.Source) error {
 		s.FacCode = v
 	}
 	if v := src.Lookup("query", "page"); v != "" {
-		parsed, err := strconv.ParseInt(v, 10, 64)
+		parsed, err := strconv.ParseInt(v, 10, 0)
 		if err != nil {
 			return failure.Wrap("%w: Page: %w", scan.ErrPayload, err)
 		}

@@ -16,7 +16,7 @@ func (s *Filter) Parse(src scan.Source) error {
 		s.Status = Status(v)
 	}
 	if v := src.Lookup("query", "page"); v != "" {
-		parsed, err := strconv.ParseInt(v, 10, 64)
+		parsed, err := strconv.ParseInt(v, 10, 0)
 		if err != nil {
 			return failure.Wrap("%w: Page: %w", scan.ErrPayload, err)
 		}
@@ -51,7 +51,7 @@ func (s *Filter) Parse(src scan.Source) error {
 		s.Pages = make([]Page, 0, len(vs))
 		for _, v := range vs {
 			v = strings.TrimSpace(v)
-			parsed, err := strconv.ParseInt(v, 10, 64)
+			parsed, err := strconv.ParseInt(v, 10, 0)
 			if err != nil {
 				return failure.Wrap("%w: Pages: %w", scan.ErrPayload, err)
 			}
