@@ -111,9 +111,15 @@ by these tests rather than by upstream's.
 
 ## Binding tags — `scan:`
 
-Body is **always** unmarshalled (JSON by default). Scoped lookups override
-body-populated fields, so order is: embed delegates → body → scoped lookups →
+Body is unmarshalled (JSON by default) when some field has no `scan:` tag, and
+it writes only fields without a tag or with `scan:"-"`. A scoped or embed field
+never comes from the body: a request without `X-User-Id` cannot supply the
+caller as `{"userid":"…"}`. Order is: body → embed delegates → scoped lookups →
 `parse()` hook.
+
+The exception is a struct that decodes itself — `UnmarshalJSON` for `json`,
+`Unmarshal<FORMAT>` in general, own or promoted: the body goes to it whole, and
+keeping it off scoped fields is that method's job.
 
 | Tag | Effect |
 |---|---|
@@ -216,22 +222,18 @@ callers don't expect it, and letting a non-generated parent silently resolve
 `Parse` to the partial embedded one. whisk emits a **warning** for this and
 keeps going; prefer a named field to keep delegation explicit.
 
-**A mixin with body fields is read flat, and that costs a pass.** `encoding/json`
-only promotes the fields of *anonymous* embedded structs, so a named field is
-looked up by its own name — a body of `{"page":1,"count":10,"name":"go"}` never
-reaches `s.Page.Page` through the parent's unmarshal. The mixin's own `Parse`
-does it, decoding the same body again. So a parent with body fields and *n*
+**A mixin with body fields is read flat, and that costs a pass.** The parent's
+decode leaves the embed out, so a body key such as `"page"` or `"user"` is never
+matched against the embed field's name. The mixin's own `Parse` reads its
+fields, decoding the same body again. So a parent with body fields and *n*
 body-carrying mixins decodes the body *n+1* times, each pass filling a disjoint
 set of fields. Not redundant work, but not free either; the way out would be
 anonymous embedding, which leaks `Parse` into the parent's method set.
 
 **A format name on the embed field is a codegen error.** `scan:"embed"` says the
-inner fields come flat from the same body; `json:"page"` says the field is a
-nested object. Both used to be honoured — the parent read the nested object, then
-the mixin's `Parse` overwrote it from the top level, so a value under `"page"`
-was silently discarded. Drop the name, or write `json:"-"` to keep the field out
-of the body entirely. The tag checked is whichever `-format` names, so `-format=xml`
-checks `xml` and ignores `json`.
+inner fields come flat from the same body; `json:"page"` asks for a nested
+object, which the parent never decodes. Drop the name. The tag checked is
+whichever `-format` names, so `-format=xml` checks `xml` and ignores `json`.
 
 **Bordering check:** if a field's type carries `scan:` tags but the field
 isn't marked `scan:"embed"` (or `scan:"-"`), whisk **errors** at codegen —
@@ -416,8 +418,10 @@ p.Format(validate.JSONFormatter) // order.items.0.name  (falls back to Go names)
 ```
 
 Each field segment carries the Go name plus tag names selected by `-format`
-(JSON ⇒ `json` names, XML ⇒ `xml` names). Walk the joined error with the
-standard `Unwrap() []error`:
+(JSON ⇒ `json` names, XML ⇒ `xml` names). A scoped field without that tag is
+named by its key — `scan:"query=startedAt"` renders as `startedAt` — and an
+embed adds no segment, since its fields arrive flat. Walk the joined error with
+the standard `Unwrap() []error`:
 
 ```go
 if me, ok := err.(interface{ Unwrap() []error }); ok {
@@ -597,13 +601,23 @@ import (
 
 func (s *LoginRequest) Parse(src scan.Source) error {
     if body := src.Body(); len(body) > 0 {
-        if err := json.Unmarshal(body, s); err != nil {
+        payload := struct {
+            Email    string `json:"email"                  validate:"required,email"`
+            Password string `json:"password"               validate:"required,min=8,max=64"`
+        }{
+            Email:    s.Email,
+            Password: s.Password,
+        }
+        if err := json.Unmarshal(body, &payload); err != nil {
             return failure.Wrap("%w: %w", scan.ErrPayload, err)
         }
+        s.Email = payload.Email
+        s.Password = payload.Password
     }
     if v := src.Lookup("path", "userId"); v != "" {
         s.UserID = v
     }
+    // … Token, Tags
     return nil
 }
 
@@ -611,7 +625,7 @@ func (s *LoginRequest) Validate() error {
     var errs []error
     if s.UserID == "" {
         errs = append(errs, &validate.ValidationError{
-            Segments: validate.Path{validate.NewFieldSegment("go", "UserID")},
+            Segments: validate.Path{validate.NewFieldSegment("go", "UserID", "json", "userId")},
             Tag:      "required",
             Kind:     validate.KindStr,
         })

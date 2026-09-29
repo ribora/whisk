@@ -2,6 +2,8 @@ package scan
 
 import (
 	"go/types"
+	"slices"
+	"strings"
 
 	"gitlab.com/gorib/whisk/internal/shared"
 )
@@ -76,6 +78,41 @@ func decodesText(t types.Type) bool {
 		return sig.Results().At(0).Type().String() == "error"
 	}
 	return false
+}
+
+// The method convention, UnmarshalJSON or UnmarshalYAML — not an extractor's UnmarshalToml.
+func decodesItself(named *types.Named, formatTag string) bool {
+	if named == nil {
+		return false
+	}
+	ms := types.NewMethodSet(types.NewPointer(named))
+	return ms.Lookup(nil, "Unmarshal"+strings.ToUpper(formatTag)) != nil
+}
+
+func bodyShape(fields []shared.FieldInfo, pkgPath string) ([]shapeField, []string) {
+	var refs []string
+	qualify := func(p *types.Package) string {
+		if p.Path() == pkgPath {
+			return ""
+		}
+		if !slices.Contains(refs, p.Path()) {
+			refs = append(refs, p.Path())
+		}
+		return p.Name()
+	}
+	out := make([]shapeField, 0, len(fields))
+	for _, f := range fields {
+		if f.Name == "_" {
+			continue
+		}
+		out = append(out, shapeField{
+			Name:     f.Name,
+			Type:     types.TypeString(f.TypeRef, qualify),
+			Tag:      string(f.Tag),
+			Embedded: f.IsEmbedded,
+		})
+	}
+	return out, refs
 }
 
 func sliceElem(t types.Type) types.Type {

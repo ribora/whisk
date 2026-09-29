@@ -2,6 +2,7 @@ package scan
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -17,13 +18,21 @@ func renderOne(sb *strings.Builder, l lexem, format Format) {
 	fmt.Fprintf(sb, "func (s *%s) Parse(src scan.Source) error {\n", l.Name)
 
 	// Only when some field is untagged: otherwise the unmarshal has nowhere to
-	// write and can only fail on a body shape that does not match. It runs first
-	// so that path and query stay authoritative over the body.
+	// write and can only fail on a body shape that does not match.
 	if l.HasBodyFields {
 		sb.WriteString("\tif body := src.Body(); len(body) > 0 {\n")
-		fmt.Fprintf(sb, "\t\tif err := %s(body, s); err != nil {\n", format.Unmarshal)
+		into := "s"
+		if len(l.Shape) > 0 {
+			renderShape(sb, l.Shape)
+			into = "&payload"
+		}
+		fmt.Fprintf(sb, "\t\tif err := %s(body, %s); err != nil {\n", format.Unmarshal, into)
 		sb.WriteString("\t\t\treturn failure.Wrap(\"%w: %w\", scan.ErrPayload, err)\n")
-		sb.WriteString("\t\t}\n\t}\n")
+		sb.WriteString("\t\t}\n")
+		for _, f := range l.Shape {
+			fmt.Fprintf(sb, "\t\ts.%s = payload.%s\n", f.Name, f.Name)
+		}
+		sb.WriteString("\t}\n")
 	}
 
 	for _, d := range l.Delegates {
@@ -38,6 +47,33 @@ func renderOne(sb *strings.Builder, l lexem, format Format) {
 		sb.WriteString("\tif err := s.parse(src); err != nil {\n\t\treturn err\n\t}\n")
 	}
 	sb.WriteString("\treturn nil\n}\n\n")
+}
+
+func renderShape(sb *strings.Builder, fields []shapeField) {
+	sb.WriteString("\t\tpayload := struct {\n")
+	for _, f := range fields {
+		sb.WriteString("\t\t\t")
+		if !f.Embedded {
+			sb.WriteString(f.Name + " ")
+		}
+		sb.WriteString(f.Type)
+		if f.Tag != "" {
+			sb.WriteString(" " + tagLiteral(f.Tag))
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("\t\t}{\n")
+	for _, f := range fields {
+		fmt.Fprintf(sb, "\t\t\t%s: s.%s,\n", f.Name, f.Name)
+	}
+	sb.WriteString("\t\t}\n")
+}
+
+func tagLiteral(tag string) string {
+	if strings.Contains(tag, "`") {
+		return strconv.Quote(tag)
+	}
+	return "`" + tag + "`"
 }
 
 func renderDelegate(sb *strings.Builder, d delegate) {

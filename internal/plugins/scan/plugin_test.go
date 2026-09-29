@@ -130,8 +130,7 @@ type Req struct {
 	}
 }
 
-// Both were honoured: the parent read the field as a nested object, then the
-// embed's own Parse read the same body flat over it.
+// The parent's decode skips an embed, so the name would be silently unread.
 func TestGenerate_embedWithFormatNameErrors(t *testing.T) {
 	runScanExpectError(t, `package sample
 type Page struct {
@@ -176,6 +175,22 @@ type Req struct {
 	must(t, string(sec.Code), "s.Page.Parse(src)")
 }
 
+func TestGenerate_selfDecodingParentKeepsWholeBody(t *testing.T) {
+	sec := runScan(t, `package sample
+type Auth struct {
+	Token string `+"`scan:\"header=Authorization\"`"+`
+}
+type Req struct {
+	A    Auth   `+"`scan:\"embed\"`"+`
+	Name string `+"`json:\"name\"`"+`
+}
+func (r *Req) UnmarshalJSON([]byte) error { return nil }
+`, scan.FormatJSON)
+	code := string(sec.Code)
+	must(t, code, "json.Unmarshal(body, s)")
+	mustNot(t, code, "payload")
+}
+
 func TestGenerate_embedDelegateAfterBody(t *testing.T) {
 	// Security regression (IDOR): when body unmarshal IS emitted (the
 	// struct has a bucket-1 field), it must run BEFORE the embed delegate.
@@ -203,7 +218,7 @@ type Req struct {
 	}
 	req := code[start:]
 
-	body := strings.Index(req, "json.Unmarshal(body, s)")
+	body := strings.Index(req, "json.Unmarshal(body, ")
 	valEmbed := strings.Index(req, "s.A.Parse(src)")
 	if body < 0 || valEmbed < 0 {
 		t.Fatalf("expected body unmarshal and embed delegate in Req.Parse:\n%s", req)

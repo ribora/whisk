@@ -9,16 +9,20 @@ func neededImports(lexems []lexem, format Format) []generator.Import {
 	wantWrap := false
 	var typeRefs []generator.Import
 	seenRef := map[string]bool{}
+	addRefs := func(refs []string) {
+		for _, ref := range refs {
+			if !seenRef[ref] {
+				seenRef[ref] = true
+				typeRefs = append(typeRefs, generator.Import{Path: ref})
+			}
+		}
+	}
 	for _, l := range lexems {
 		wantBody = wantBody || l.HasBodyFields
+		addRefs(l.ShapeRefs)
 		for _, f := range l.Fields {
 			wantWrap = wantWrap || f.Text || f.ElemText
-			for _, ref := range f.Refs {
-				if !seenRef[ref] {
-					seenRef[ref] = true
-					typeRefs = append(typeRefs, generator.Import{Path: ref})
-				}
-			}
+			addRefs(f.Refs)
 			if f.ElemType != "" {
 				wantStrings = true
 				if needsStrconv(f.ElemKind) {

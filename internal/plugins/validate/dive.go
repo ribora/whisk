@@ -141,20 +141,27 @@ func (h diveHandler) intoStruct(buf *bytes.Buffer, f field, ctx context) (bool, 
 		guardNil(buf, name, f.IsPointer, func(b *bytes.Buffer) {
 			fmt.Fprintf(b, "\tif vv, ok := any(%s).(interface{ Validate() error }); ok {\n", name)
 			b.WriteString("\t\tif subErr := vv.Validate(); subErr != nil {\n")
-			fmt.Fprintf(b, "\t\t\tvalidate.AppendSubErrors(&errs, subErr, %s)\n", seg)
+			fmt.Fprintf(b, "\t\t\t%s\n", appendSubErrors(seg))
 			b.WriteString("\t\t}\n\t}\n")
 		})
 		return true, nil
 	case willHaveValidate(elem):
 		guardNil(buf, name, f.IsPointer, func(b *bytes.Buffer) {
 			fmt.Fprintf(b, "\tif subErr := %s.Validate(); subErr != nil {\n", name)
-			fmt.Fprintf(b, "\t\tvalidate.AppendSubErrors(&errs, subErr, %s)\n", seg)
+			fmt.Fprintf(b, "\t\t%s\n", appendSubErrors(seg))
 			b.WriteString("\t}\n")
 		})
 		return true, nil
 	default:
 		return false, nil
 	}
+}
+
+func appendSubErrors(seg string) string {
+	if seg == "" {
+		return "validate.AppendSubErrors(&errs, subErr)"
+	}
+	return "validate.AppendSubErrors(&errs, subErr, " + seg + ")"
 }
 
 // Validate on a nil pointer panics, and an absent optional struct is not itself

@@ -14,14 +14,16 @@ func walk(s shared.StructInfo, formatTag string) (lexem, []string, error) {
 
 	lex := lexem{Name: s.Name, HasHook: s.HasParseHook}
 	var warnings []string
+	var bodyFields []shared.FieldInfo
 	for _, f := range s.Fields {
 		raw := strings.TrimSpace(f.Tag.Get("scan"))
 		switch raw {
 		case "":
 			// An untagged field is what makes a body unmarshal necessary.
 			lex.HasBodyFields = true
+			bodyFields = append(bodyFields, f)
 		case "-":
-			// Opts out of every source.
+			bodyFields = append(bodyFields, f)
 		case "embed":
 			// embed delegates to one Parse, and a collection has no single target.
 			if f.IsSlice || f.IsMap {
@@ -36,11 +38,9 @@ func walk(s shared.StructInfo, formatTag string) (lexem, []string, error) {
 			if !isNamedStruct(f) {
 				return lexem{}, nil, fmt.Errorf("%s.%s: scan:\"embed\" requires a named struct type (so it has a Parse method to delegate to), got %s", s.Name, f.Name, f.Type)
 			}
-			// embed reads the inner fields from the same body; a format name makes
-			// the field a nested object. Both were honoured, and the flat read won.
 			if name, _, _ := strings.Cut(f.Tag.Get(formatTag), ","); name != "" && name != "-" {
-				return lexem{}, nil, fmt.Errorf("%s.%s: scan:\"embed\" and %s:%q contradict each other — embed reads the inner fields from the same body, a %s name makes this field a nested object; drop the name, or use %s:\"-\" to keep the field out of the body",
-					s.Name, f.Name, formatTag, name, formatTag, formatTag)
+				return lexem{}, nil, fmt.Errorf("%s.%s: scan:\"embed\" and %s:%q contradict each other — embed reads the inner fields flat from the same body, a %s name asks for a nested object; drop the name",
+					s.Name, f.Name, formatTag, name, formatTag)
 			}
 			// Works, but the embedded Parse promotes into the parent's method set.
 			if f.IsEmbedded {
@@ -54,6 +54,9 @@ func walk(s shared.StructInfo, formatTag string) (lexem, []string, error) {
 			}
 			lex.Fields = append(lex.Fields, sf)
 		}
+	}
+	if lex.HasBodyFields && len(bodyFields) < len(s.Fields) && !decodesItself(s.Named, formatTag) {
+		lex.Shape, lex.ShapeRefs = bodyShape(bodyFields, s.PkgPath)
 	}
 	return lex, warnings, nil
 }

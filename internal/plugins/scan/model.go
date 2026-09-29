@@ -6,6 +6,15 @@ type lexem struct {
 	Fields        []sourceField
 	HasHook       bool // *T defines parse(scan.Source) error
 	HasBodyFields bool
+	Shape         []shapeField
+	ShapeRefs     []string
+}
+
+type shapeField struct {
+	Name     string
+	Type     string
+	Tag      string
+	Embedded bool
 }
 
 type delegate struct {

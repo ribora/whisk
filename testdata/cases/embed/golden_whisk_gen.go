@@ -54,7 +54,7 @@ func (s *Auth) Validate() error {
 	var errs []error
 	if s.Token == "" {
 		errs = append(errs, &validate.ValidationError{
-			Segments: validate.Path{validate.NewFieldSegment("go", "Token")},
+			Segments: validate.Path{validate.NewFieldSegment("go", "Token", "json", "Authorization")},
 			Tag:      "required",
 			Kind:     validate.KindStr,
 		})
@@ -67,7 +67,7 @@ func (s *Pagination) Validate() error {
 	if s.Page != 0 {
 		if s.Page < 1 {
 			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "Page")},
+				Segments: validate.Path{validate.NewFieldSegment("go", "Page", "json", "page")},
 				Tag:      "gte",
 				Value:    "1",
 				Kind:     validate.KindValue,
@@ -77,7 +77,7 @@ func (s *Pagination) Validate() error {
 	if s.PerPage != 0 {
 		if s.PerPage < 1 {
 			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "PerPage")},
+				Segments: validate.Path{validate.NewFieldSegment("go", "PerPage", "json", "per_page")},
 				Tag:      "gte",
 				Value:    "1",
 				Kind:     validate.KindValue,
@@ -85,7 +85,7 @@ func (s *Pagination) Validate() error {
 		}
 		if s.PerPage > 100 {
 			errs = append(errs, &validate.ValidationError{
-				Segments: validate.Path{validate.NewFieldSegment("go", "PerPage")},
+				Segments: validate.Path{validate.NewFieldSegment("go", "PerPage", "json", "per_page")},
 				Tag:      "lte",
 				Value:    "100",
 				Kind:     validate.KindValue,
@@ -98,14 +98,14 @@ func (s *Pagination) Validate() error {
 func (s *ListRequest) Validate() error {
 	var errs []error
 	if subErr := s.Auth.Validate(); subErr != nil {
-		validate.AppendSubErrors(&errs, subErr, validate.NewFieldSegment("go", "Auth"))
+		validate.AppendSubErrors(&errs, subErr)
 	}
 	if subErr := s.Pagination.Validate(); subErr != nil {
-		validate.AppendSubErrors(&errs, subErr, validate.NewFieldSegment("go", "Pagination"))
+		validate.AppendSubErrors(&errs, subErr)
 	}
 	if s.UserID == "" {
 		errs = append(errs, &validate.ValidationError{
-			Segments: validate.Path{validate.NewFieldSegment("go", "UserID")},
+			Segments: validate.Path{validate.NewFieldSegment("go", "UserID", "json", "userId")},
 			Tag:      "required",
 			Kind:     validate.KindStr,
 		})

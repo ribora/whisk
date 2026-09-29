@@ -45,6 +45,10 @@ var successCases = []caseSpec{
 	{dir: "zero_guards", format: scan.FormatJSON},
 	{dir: "text_unmarshal", format: scan.FormatJSON},
 	{dir: "embed", format: scan.FormatJSON},
+	{dir: "embed_path", format: scan.FormatJSON},
+	{dir: "embed_body", format: scan.FormatJSON},
+	{dir: "scoped_path", format: scan.FormatJSON},
+	{dir: "scoped_body", format: scan.FormatJSON},
 	{dir: "dive_slice", format: scan.FormatJSON},
 	{dir: "dive_map", format: scan.FormatJSON},
 	{dir: "hook_only", format: scan.FormatJSON},
@@ -162,8 +166,13 @@ func TestErrors(t *testing.T) {
 // fails when something calls it.
 var runnableCases = []string{
 	"basic",
+	"embed",
+	"embed_body",
+	"embed_path",
 	"named_scalars",
 	"narrow_scalars",
+	"scoped_body",
+	"scoped_path",
 	"text_unmarshal",
 	"zero_guards",
 }

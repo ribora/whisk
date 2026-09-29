@@ -17,9 +17,18 @@ import (
 
 func (s *Invite) Parse(src scan.Source) error {
 	if body := src.Body(); len(body) > 0 {
-		if err := json.Unmarshal(body, s); err != nil {
+		payload := struct {
+			Email string `validate:"required,email" json:"email"`
+			Name  string `validate:"required,max=20" json:"name"`
+		}{
+			Email: s.Email,
+			Name:  s.Name,
+		}
+		if err := json.Unmarshal(body, &payload); err != nil {
 			return failure.Wrap("%w: %w", scan.ErrPayload, err)
 		}
+		s.Email = payload.Email
+		s.Name = payload.Name
 	}
 	if v := src.Lookup("path", "orgId"); v != "" {
 		s.OrgID = v

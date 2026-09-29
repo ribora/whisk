@@ -8,7 +8,8 @@ import (
 
 // Sorted by key: the output is compared against a golden.
 func fieldSegmentCode(f field, extractTags []string) string {
-	if f.Name == "" {
+	scanTag := strings.TrimSpace(f.Tag.Get("scan"))
+	if f.Name == "" || scanTag == "embed" {
 		return ""
 	}
 	pairs := []string{fmt.Sprintf("%q, %q", "go", f.Name)}
@@ -17,7 +18,11 @@ func fieldSegmentCode(f field, extractTags []string) string {
 		if key == "go" {
 			continue
 		}
-		if v := strings.Split(f.Tag.Get(key), ",")[0]; v != "" && v != "-" {
+		v := strings.Split(f.Tag.Get(key), ",")[0]
+		if v == "" || v == "-" {
+			v = scanKey(scanTag)
+		}
+		if v != "" {
 			names[key] = v
 		}
 	}
@@ -30,6 +35,15 @@ func fieldSegmentCode(f field, extractTags []string) string {
 		pairs = append(pairs, fmt.Sprintf("%q, %q", k, names[k]))
 	}
 	return "validate.NewFieldSegment(" + strings.Join(pairs, ", ") + ")"
+}
+
+func scanKey(scanTag string) string {
+	_, rest, ok := strings.Cut(scanTag, "=")
+	if !ok {
+		return ""
+	}
+	key, _, _ := strings.Cut(rest, ",")
+	return strings.TrimSpace(key)
 }
 
 // "now", a duration such as "7d" or "-1h", or an ISO date — the forms

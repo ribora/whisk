@@ -50,7 +50,7 @@ func (s *Inner) Validate() error {
 	var errs []error
 	if s.Token == "" {
 		errs = append(errs, &validate.ValidationError{
-			Segments: validate.Path{validate.NewFieldSegment("go", "Token")},
+			Segments: validate.Path{validate.NewFieldSegment("go", "Token", "json", "Authorization")},
 			Tag:      "required",
 			Kind:     validate.KindStr,
 		})
@@ -73,14 +73,14 @@ func (s *FromContext) Validate() error {
 func (s *Request) Validate() error {
 	var errs []error
 	if subErr := s.Inner.Validate(); subErr != nil {
-		validate.AppendSubErrors(&errs, subErr, validate.NewFieldSegment("go", "Inner"))
+		validate.AppendSubErrors(&errs, subErr)
 	}
 	if subErr := s.Context.Validate(); subErr != nil {
-		validate.AppendSubErrors(&errs, subErr, validate.NewFieldSegment("go", "Context"))
+		validate.AppendSubErrors(&errs, subErr)
 	}
 	if s.FacCode == "" {
 		errs = append(errs, &validate.ValidationError{
-			Segments: validate.Path{validate.NewFieldSegment("go", "FacCode")},
+			Segments: validate.Path{validate.NewFieldSegment("go", "FacCode", "json", "facilityCode")},
 			Tag:      "required",
 			Kind:     validate.KindStr,
 		})
