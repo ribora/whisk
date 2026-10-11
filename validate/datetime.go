@@ -68,7 +68,7 @@ func prepareCompare(value any, targetStr string) (time.Time, time.Time, bool, bo
 	case string:
 		if tv, err := time.Parse(time.RFC3339, v); err == nil {
 			t, valOk, hasTime = tv, true, true
-		} else if tv, err := time.Parse("2006-01-02", v); err == nil {
+		} else if tv, err := time.ParseInLocation("2006-01-02", v, time.Local); err == nil {
 			t, valOk = tv, true
 		}
 	}
@@ -109,7 +109,7 @@ func prepareCompare(value any, targetStr string) (time.Time, time.Time, bool, bo
 	if target, err := time.Parse(time.RFC3339, targetStr); err == nil {
 		return t, target, true, true
 	}
-	if target, err := time.Parse("2006-01-02", targetStr); err == nil {
+	if target, err := time.ParseInLocation("2006-01-02", targetStr, time.Local); err == nil {
 		return t, target, false, true
 	}
 

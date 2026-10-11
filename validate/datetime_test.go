@@ -29,6 +29,15 @@ func TestIsDatetime(t *testing.T) {
 	}
 }
 
+func local(t *testing.T, value string) string {
+	t.Helper()
+	parsed, err := time.ParseInLocation("2006-01-02T15:04:05", value, time.Local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parsed.Format(time.RFC3339)
+}
+
 // A date-only bound covers the whole day: min opens it at 00:00:00 and max
 // closes it at 23:59:59.999999999, so a timestamp inside the day satisfies both.
 func TestDateOnlyBoundsSpanTheWholeDay(t *testing.T) {
@@ -37,10 +46,10 @@ func TestDateOnlyBoundsSpanTheWholeDay(t *testing.T) {
 		value    string
 		min, max bool
 	}{
-		{value: "2020-06-15T00:00:00Z", min: true, max: true},
-		{value: "2020-06-15T23:59:59Z", min: true, max: true},
-		{value: "2020-06-14T23:59:59Z", min: false, max: true},
-		{value: "2020-06-16T00:00:00Z", min: true, max: false},
+		{value: local(t, "2020-06-15T00:00:00"), min: true, max: true},
+		{value: local(t, "2020-06-15T23:59:59"), min: true, max: true},
+		{value: local(t, "2020-06-14T23:59:59"), min: false, max: true},
+		{value: local(t, "2020-06-16T00:00:00"), min: true, max: false},
 	}
 	for _, c := range cases {
 		if got := validate.IsTimeMin(c.value, day); got != c.min {
@@ -77,17 +86,42 @@ func TestInstantBoundsAreNotWidened(t *testing.T) {
 // gt/lt take the bound literally instead, so midnight of the bound day fails a
 // gt against that same day — the difference from min/max is deliberate.
 func TestStrictBoundsUseTheInstant(t *testing.T) {
-	if validate.IsTimeGT("2020-06-15T00:00:00Z", "2020-06-15") {
+	if validate.IsTimeGT(local(t, "2020-06-15T00:00:00"), "2020-06-15") {
 		t.Error("IsTimeGT at the bound instant should be false")
 	}
-	if !validate.IsTimeGT("2020-06-15T00:00:01Z", "2020-06-15") {
+	if !validate.IsTimeGT(local(t, "2020-06-15T00:00:01"), "2020-06-15") {
 		t.Error("IsTimeGT one second past the bound should be true")
 	}
-	if validate.IsTimeLT("2020-06-15T00:00:00Z", "2020-06-15") {
+	if validate.IsTimeLT(local(t, "2020-06-15T00:00:00"), "2020-06-15") {
 		t.Error("IsTimeLT at the bound instant should be false")
 	}
-	if !validate.IsTimeLT("2020-06-14T23:59:59Z", "2020-06-15") {
+	if !validate.IsTimeLT(local(t, "2020-06-14T23:59:59"), "2020-06-15") {
 		t.Error("IsTimeLT before the bound should be true")
+	}
+}
+
+func TestDateOnlyValueIsALocalDay(t *testing.T) {
+	saved := time.Local
+	t.Cleanup(func() { time.Local = saved })
+	time.Local = time.FixedZone("UTC-12", -12*60*60)
+
+	today := time.Now().Format("2006-01-02")
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	cases := []struct {
+		value, bound string
+		min, max     bool
+	}{
+		{value: today, bound: "now", min: true, max: true},
+		{value: yesterday, bound: "now", min: false, max: true},
+		{value: today, bound: "0d", min: true, max: true},
+	}
+	for _, c := range cases {
+		if got := validate.IsTimeMin(c.value, c.bound); got != c.min {
+			t.Errorf("IsTimeMin(%q, %q) = %v, want %v", c.value, c.bound, got, c.min)
+		}
+		if got := validate.IsTimeMax(c.value, c.bound); got != c.max {
+			t.Errorf("IsTimeMax(%q, %q) = %v, want %v", c.value, c.bound, got, c.max)
+		}
 	}
 }
 
