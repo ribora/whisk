@@ -413,8 +413,8 @@ in whatever style the receiver expects:
 
 ```go
 p := ve.Segments
-p.Format(validate.GoFormatter)   // Order.Items.0.Name
-p.Format(validate.JSONFormatter) // order.items.0.name  (falls back to Go names)
+p.Format(validate.GoFormatter)   // Order.Items[0].Name
+p.Format(validate.JSONFormatter) // order.items[0].name  (falls back to Go names)
 ```
 
 Each field segment carries the Go name plus tag names selected by `-format`
