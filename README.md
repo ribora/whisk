@@ -180,7 +180,7 @@ there.
 > returns kinds, not statuses: a bad value in `ID string` with `validate:"uuid"`
 > is a `*validate.ValidationError`, while the same value in `ID uuid.UUID` fails
 > in `Parse` and comes back wrapped in `scan.ErrPayload`. What that becomes is up
-> to whoever renders it — the HTTP middleware in `gorib/http` answers the first
+> to whoever renders it — the HTTP middleware in `ribora/http` answers the first
 > with **422** and `type: validation_failed`, the second with **400**; a queue
 > consumer over the same struct has no status to answer with at all. Both classes
 > are defensible, but the switch is silent, so change the renderer's contract
