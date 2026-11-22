@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 // ---- custom (built-in + user-defined Is<Tag>) ----

@@ -7,10 +7,10 @@ package custom_validator
 import (
 	"encoding/json"
 	"errors"
-	"gitlab.com/gorib/failure"
-	"gitlab.com/gorib/whisk/scan"
-	checks "gitlab.com/gorib/whisk/testdata/cases/custom_validator/checks"
-	"gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/failure"
+	"github.com/ribora/whisk/scan"
+	checks "github.com/ribora/whisk/testdata/cases/custom_validator/checks"
+	"github.com/ribora/whisk/validate"
 )
 
 func (s *Auth) Parse(src scan.Source) error {

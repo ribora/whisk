@@ -14,7 +14,7 @@ import (
 func whiskBinary(t *testing.T) string {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "whisk")
-	build := exec.Command("go", "build", "-o", bin, "gitlab.com/gorib/whisk/cmd/whisk")
+	build := exec.Command("go", "build", "-o", bin, "github.com/ribora/whisk/cmd/whisk")
 	build.Dir = caseDir(t, "")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("building whisk: %v\n%s", err, out)

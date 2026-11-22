@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gitlab.com/gorib/whisk/internal/shared"
-	"gitlab.com/gorib/whisk/internal/testmodule"
+	"github.com/ribora/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/testmodule"
 )
 
 // Both predicates decide whether generated code may call a method, so a wrong

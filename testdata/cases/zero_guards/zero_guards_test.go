@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/whisk/validate"
 )
 
 // A zero Doc is the absent-everything case. Only required may speak, and nothing

@@ -3,7 +3,7 @@ package scoped_body
 import (
 	"testing"
 
-	"gitlab.com/gorib/whisk/scan"
+	"github.com/ribora/whisk/scan"
 )
 
 // The header and the query parameter are absent, so nothing overrides what

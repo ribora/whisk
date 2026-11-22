@@ -9,9 +9,9 @@ import (
 	"slices"
 	"strings"
 
-	"gitlab.com/gorib/whisk/internal/generator"
-	"gitlab.com/gorib/whisk/internal/shared"
-	wvalidate "gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/whisk/internal/generator"
+	"github.com/ribora/whisk/internal/shared"
+	wvalidate "github.com/ribora/whisk/validate"
 )
 
 type Options struct {
@@ -171,7 +171,7 @@ func structContributes(s shared.StructInfo) bool {
 func neededImports(generatedCode string, hasUserChecks bool, userChecksImport string) []generator.Import {
 	out := []generator.Import{{Path: "errors"}}
 	if strings.Contains(generatedCode, "validate.") {
-		out = append(out, generator.Import{Path: "gitlab.com/gorib/whisk/validate"})
+		out = append(out, generator.Import{Path: "github.com/ribora/whisk/validate"})
 	}
 	if strings.Contains(generatedCode, "fmt.Sprintf") {
 		out = append(out, generator.Import{Path: "fmt"})

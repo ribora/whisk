@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/whisk/validate"
 )
 
 func TestPathFormatting(t *testing.T) {

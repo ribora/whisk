@@ -7,8 +7,8 @@ package required_struct_value
 import (
 	"encoding/json"
 	"errors"
-	"gitlab.com/gorib/failure"
-	"gitlab.com/gorib/whisk/scan"
+	"github.com/ribora/failure"
+	"github.com/ribora/whisk/scan"
 )
 
 func (s *Meta) Parse(src scan.Source) error {

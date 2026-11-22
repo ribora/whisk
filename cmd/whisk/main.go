@@ -17,9 +17,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/gorib/whisk/internal/generator"
-	"gitlab.com/gorib/whisk/internal/plugins/scan"
-	"gitlab.com/gorib/whisk/internal/plugins/validate"
+	"github.com/ribora/whisk/internal/generator"
+	"github.com/ribora/whisk/internal/plugins/scan"
+	"github.com/ribora/whisk/internal/plugins/validate"
 )
 
 type flagBinder interface {

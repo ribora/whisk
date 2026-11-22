@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/gorib/whisk/internal/plugins/validate"
+	"github.com/ribora/whisk/internal/plugins/validate"
 )
 
 // Kind is a public vocabulary: a consumer switches on it to word its own message.

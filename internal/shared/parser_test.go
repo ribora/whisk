@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gitlab.com/gorib/whisk/internal/shared"
-	"gitlab.com/gorib/whisk/internal/testmodule"
+	"github.com/ribora/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/testmodule"
 )
 
 func TestLoad_topLevelStructsInSourceOrder(t *testing.T) {
@@ -163,7 +163,7 @@ type S struct {
 func TestLoad_detectsHooks(t *testing.T) {
 	dir := testmodule.New(t, `package sample
 
-import "gitlab.com/gorib/whisk/scan"
+import "github.com/ribora/whisk/scan"
 
 type Hooked struct {
 	X int

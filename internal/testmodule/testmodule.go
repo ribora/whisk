@@ -21,7 +21,7 @@ func New(t *testing.T, source string) string {
 	version := goDirective(t, root)
 
 	files := map[string]string{
-		"go.mod":    "module sample\n\ngo " + version + "\n\nrequire gitlab.com/gorib/whisk v0.0.0\n",
+		"go.mod":    "module sample\n\ngo " + version + "\n\nrequire github.com/ribora/whisk v0.0.0\n",
 		"go.work":   "go " + version + "\n\nuse (\n\t.\n\t" + root + "\n)\n",
 		"sample.go": source,
 	}
@@ -55,7 +55,7 @@ func checkoutRoot(t *testing.T) string {
 
 func isWhisk(path string) bool {
 	body, err := os.ReadFile(path)
-	return err == nil && strings.HasPrefix(string(body), "module gitlab.com/gorib/whisk\n")
+	return err == nil && strings.HasPrefix(string(body), "module github.com/ribora/whisk\n")
 }
 
 func goDirective(t *testing.T, root string) string {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"gitlab.com/gorib/whisk/scan"
+	"github.com/ribora/whisk/scan"
 )
 
 // fakeSource is a scan.Source whose body, header, query and path scopes can

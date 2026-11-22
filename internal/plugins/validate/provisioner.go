@@ -3,7 +3,7 @@ package validate
 import (
 	"go/ast"
 
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 // tag "passcode" -> func IsPasscode(…) in any file of the storage dir. A second

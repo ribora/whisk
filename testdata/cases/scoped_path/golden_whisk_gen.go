@@ -6,8 +6,8 @@ package scoped_path
 
 import (
 	"errors"
-	"gitlab.com/gorib/whisk/scan"
-	"gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/whisk/scan"
+	"github.com/ribora/whisk/validate"
 )
 
 func (s *PriceQuery) Parse(src scan.Source) error {

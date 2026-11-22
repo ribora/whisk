@@ -4,7 +4,7 @@ import (
 	"net/url"
 	"testing"
 
-	"gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/whisk/validate"
 )
 
 // Every built-in reduced to one shape, so the tables below read the same whether

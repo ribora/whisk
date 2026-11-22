@@ -6,10 +6,10 @@ package custom_format
 
 import (
 	"errors"
-	"gitlab.com/gorib/failure"
-	"gitlab.com/gorib/whisk/scan"
-	bodyfmt "gitlab.com/gorib/whisk/testdata/cases/custom_format/extractor"
-	"gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/failure"
+	"github.com/ribora/whisk/scan"
+	bodyfmt "github.com/ribora/whisk/testdata/cases/custom_format/extractor"
+	"github.com/ribora/whisk/validate"
 )
 
 func (s *Doc) Parse(src scan.Source) error {

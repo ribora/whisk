@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/gorib/whisk/internal/generator"
-	"gitlab.com/gorib/whisk/internal/plugins/scan"
-	"gitlab.com/gorib/whisk/internal/shared"
-	"gitlab.com/gorib/whisk/internal/testmodule"
+	"github.com/ribora/whisk/internal/generator"
+	"github.com/ribora/whisk/internal/plugins/scan"
+	"github.com/ribora/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/testmodule"
 )
 
 // runScan loads the synthetic module, runs the scan plugin in isolation,
@@ -57,7 +57,7 @@ type Empty struct{}
 
 	must(t, string(sec.Code), "func (s *Empty) Parse(src scan.Source) error")
 	mustNot(t, string(sec.Code), "src.Body()", "json.Unmarshal(body, s)")
-	wantImports(t, sec.Imports, "gitlab.com/gorib/whisk/scan")
+	wantImports(t, sec.Imports, "github.com/ribora/whisk/scan")
 }
 
 func TestGenerate_scalarLookups(t *testing.T) {
@@ -80,7 +80,7 @@ type Req struct {
 		`strconv.ParseBool(v)`,
 		`s.UserID = v`,
 	)
-	wantImports(t, sec.Imports, "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan", "strconv")
+	wantImports(t, sec.Imports, "github.com/ribora/failure", "github.com/ribora/whisk/scan", "strconv")
 }
 
 func TestGenerate_sliceRepeated(t *testing.T) {
@@ -95,7 +95,7 @@ type Req struct {
 		"strings.TrimSpace",
 		"make([]string, 0, len(vs))",
 	)
-	wantImports(t, sec.Imports, "gitlab.com/gorib/whisk/scan", "strings")
+	wantImports(t, sec.Imports, "github.com/ribora/whisk/scan", "strings")
 }
 
 func TestGenerate_sliceCommaSplit(t *testing.T) {
@@ -110,7 +110,7 @@ type Req struct {
 		`strings.Split(v, ",")`,
 		"strconv.ParseInt(p, 10, 0)",
 	)
-	wantImports(t, sec.Imports, "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan", "strconv", "strings")
+	wantImports(t, sec.Imports, "github.com/ribora/failure", "github.com/ribora/whisk/scan", "strconv", "strings")
 }
 
 func TestGenerate_embedDelegate(t *testing.T) {
@@ -280,7 +280,7 @@ type Req struct {
 func TestGenerate_parseHook(t *testing.T) {
 	sec := runScan(t, `package sample
 
-import "gitlab.com/gorib/whisk/scan"
+import "github.com/ribora/whisk/scan"
 
 type Hooked struct {
 	X string `+"`scan:\"query=x\"`"+`
@@ -312,7 +312,7 @@ type Req struct {
 `, scan.FormatXML)
 	code := string(sec.Code)
 	must(t, code, "xml.Unmarshal(body, s)")
-	wantImports(t, sec.Imports, "encoding/xml", "gitlab.com/gorib/failure", "gitlab.com/gorib/whisk/scan")
+	wantImports(t, sec.Imports, "encoding/xml", "github.com/ribora/failure", "github.com/ribora/whisk/scan")
 }
 
 func TestGenerate_formattedOutputCompiles(t *testing.T) {

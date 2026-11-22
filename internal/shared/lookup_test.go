@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 func TestPascalCase(t *testing.T) {

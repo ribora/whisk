@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/whisk/validate"
 )
 
 func TestIsDatetime(t *testing.T) {

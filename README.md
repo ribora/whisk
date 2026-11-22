@@ -17,7 +17,7 @@ runs the lot.
 ## Install
 
 ```bash
-go install gitlab.com/gorib/whisk/cmd/whisk@latest
+go install github.com/ribora/whisk/cmd/whisk@latest
 ```
 
 ## Quick start
@@ -46,10 +46,10 @@ func (s *LoginRequest) Parse(src scan.Source) error // bind from request
 func (s *LoginRequest) Validate() error             // check (only if it has validation)
 ```
 
-Wire it through `gitlab.com/gorib/http/server`:
+Wire it through `github.com/ribora/http/server`:
 
 ```go
-import "gitlab.com/gorib/http/server"
+import "github.com/ribora/http/server"
 
 // Handler style — Parse + Validate run before fn; first error short-circuits.
 mux.Post("/login", server.Bind(func(ctx context.Context, req *model.LoginRequest) (*server.Response[Out], error) {
@@ -130,7 +130,7 @@ keeping it off scoped fields is that method's job.
 | *(no scan tag)* | field comes from the body unmarshal |
 
 `<scope>` is an **opaque string** — the `Source` adapter decides what it means.
-The HTTP adapter (`gitlab.com/gorib/http/server`) defines
+The HTTP adapter (`github.com/ribora/http/server`) defines
 `path`/`query`/`header`/`cookie`/`form`; an AMQP or Kafka adapter can define
 its own (`routing-key`, `topic`, …). whisk emits the lookup verbatim and never
 hardcodes a scope.
@@ -432,7 +432,7 @@ if me, ok := err.(interface{ Unwrap() []error }); ok {
 }
 ```
 
-The `gitlab.com/gorib/http/server/middleware` error renderer does this for you,
+The `github.com/ribora/http/server/middleware` error renderer does this for you,
 turning validation errors into a `422` with a JSON path/tag/value/kind list and
 `scan.ErrPayload` into a `400`.
 
@@ -594,9 +594,9 @@ import (
     "encoding/json"
     "errors"
 
-    "gitlab.com/gorib/failure"
-    "gitlab.com/gorib/whisk/scan"
-    "gitlab.com/gorib/whisk/validate"
+    "github.com/ribora/failure"
+    "github.com/ribora/whisk/scan"
+    "github.com/ribora/whisk/validate"
 )
 
 func (s *LoginRequest) Parse(src scan.Source) error {
@@ -648,7 +648,7 @@ sections, dedupes/sorts imports, runs `go/format`, and writes only if the
 output changed.
 
 ```
-gitlab.com/gorib/whisk/
+github.com/ribora/whisk/
 ├── scan/                  runtime: Source interface, ErrPayload
 ├── validate/             runtime: validators, ValidationError, Path, formatters
 ├── cmd/whisk/            CLI entry point

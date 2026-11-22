@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"gitlab.com/gorib/whisk/scan"
+	"github.com/ribora/whisk/scan"
 )
 
 // values is a Source backed by a map, so a case can be exercised without any

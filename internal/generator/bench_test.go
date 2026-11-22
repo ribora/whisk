@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/gorib/whisk/internal/generator"
-	"gitlab.com/gorib/whisk/internal/plugins/scan"
-	"gitlab.com/gorib/whisk/internal/plugins/validate"
-	"gitlab.com/gorib/whisk/internal/shared"
-	"gitlab.com/gorib/whisk/internal/testmodule"
+	"github.com/ribora/whisk/internal/generator"
+	"github.com/ribora/whisk/internal/plugins/scan"
+	"github.com/ribora/whisk/internal/plugins/validate"
+	"github.com/ribora/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/testmodule"
 )
 
 // Loading is the Go type-checker's time, not whisk's, so it happens once and the

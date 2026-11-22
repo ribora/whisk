@@ -7,9 +7,9 @@ package xml_body
 import (
 	"encoding/xml"
 	"errors"
-	"gitlab.com/gorib/failure"
-	"gitlab.com/gorib/whisk/scan"
-	"gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/failure"
+	"github.com/ribora/whisk/scan"
+	"github.com/ribora/whisk/validate"
 )
 
 func (s *Doc) Parse(src scan.Source) error {

@@ -11,8 +11,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"gitlab.com/gorib/whisk/internal/plugins/scan"
-	"gitlab.com/gorib/whisk/internal/plugins/validate"
+	"github.com/ribora/whisk/internal/plugins/scan"
+	"github.com/ribora/whisk/internal/plugins/validate"
 )
 
 const configFile = "whisk.yaml"

@@ -1,6 +1,6 @@
 package scan
 
-import "gitlab.com/gorib/whisk/internal/generator"
+import "github.com/ribora/whisk/internal/generator"
 
 // Only the body unmarshal uses this; a scoped lookup is format-agnostic.
 type Format struct {

@@ -1,8 +1,8 @@
 package scan
 
 import (
-	"gitlab.com/gorib/whisk/internal/generator"
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/generator"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 type Plugin struct {

@@ -6,7 +6,7 @@ import (
 	"uuid"
 
 	guid "github.com/google/uuid"
-	"gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/whisk/validate"
 )
 
 // The type sets of the generic validators are wide because a request model can

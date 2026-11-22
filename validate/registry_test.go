@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/gorib/whisk/internal/shared"
-	"gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/whisk/internal/shared"
+	"github.com/ribora/whisk/validate"
 )
 
 // Called by name from the emitter, not through BuiltIns.

@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strings"
 
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 // Whether t has a Validate at the final compile, decided from tags and

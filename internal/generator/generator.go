@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 const GenFileSuffix = "_whisk_gen.go"

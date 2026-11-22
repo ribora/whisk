@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/gorib/whisk/internal/plugins/validate"
+	"github.com/ribora/whisk/internal/plugins/validate"
 )
 
 // Diving is only useful if the error says which element failed. The locator used to

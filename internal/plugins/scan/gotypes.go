@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 // The strconv call is chosen by this. Empty for anything not basic, and the

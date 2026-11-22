@@ -7,9 +7,9 @@ package dive_slice
 import (
 	"encoding/json"
 	"errors"
-	"gitlab.com/gorib/failure"
-	"gitlab.com/gorib/whisk/scan"
-	"gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/failure"
+	"github.com/ribora/whisk/scan"
+	"github.com/ribora/whisk/validate"
 	"unicode/utf8"
 )
 

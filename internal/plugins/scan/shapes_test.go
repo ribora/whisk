@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/gorib/whisk/internal/plugins/scan"
+	"github.com/ribora/whisk/internal/plugins/scan"
 )
 
 // A shape the emitter cannot build from text has one correct outcome: the TODO

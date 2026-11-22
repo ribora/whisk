@@ -6,8 +6,8 @@ package embed_body
 
 import (
 	"encoding/json"
-	"gitlab.com/gorib/failure"
-	"gitlab.com/gorib/whisk/scan"
+	"github.com/ribora/failure"
+	"github.com/ribora/whisk/scan"
 	"time"
 )
 

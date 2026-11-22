@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/gorib/whisk/internal/plugins/validate"
+	"github.com/ribora/whisk/internal/plugins/validate"
 )
 
 // Both the guard and required's zero check used to be read off how a type is

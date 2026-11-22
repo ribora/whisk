@@ -1,6 +1,6 @@
 package scan
 
-import "gitlab.com/gorib/whisk/internal/generator"
+import "github.com/ribora/whisk/internal/generator"
 
 func neededImports(lexems []lexem, format Format) []generator.Import {
 	wantStrconv := false
@@ -35,9 +35,9 @@ func neededImports(lexems []lexem, format Format) []generator.Import {
 			}
 		}
 	}
-	out := []generator.Import{{Path: "gitlab.com/gorib/whisk/scan"}}
+	out := []generator.Import{{Path: "github.com/ribora/whisk/scan"}}
 	if wantBody || wantStrconv || wantWrap {
-		out = append(out, generator.Import{Path: "gitlab.com/gorib/failure"})
+		out = append(out, generator.Import{Path: "github.com/ribora/failure"})
 	}
 	if wantBody {
 		out = append(out, format.Import)

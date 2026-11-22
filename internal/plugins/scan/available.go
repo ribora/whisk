@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 // A body format this project can pass to -format.

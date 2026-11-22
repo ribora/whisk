@@ -1,6 +1,6 @@
 package tags_only
 
-import "gitlab.com/gorib/whisk/scan"
+import "github.com/ribora/whisk/scan"
 
 // Inner is body-free: its only field is sourced from a header. Used as
 // an embed below to exercise the "scan:\"embed\" alone is not a body

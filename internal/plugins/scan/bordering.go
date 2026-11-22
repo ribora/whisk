@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 func checkBordering(s shared.StructInfo) error {

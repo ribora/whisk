@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/gorib/whisk/internal/plugins/scan"
-	"gitlab.com/gorib/whisk/internal/plugins/validate"
+	"github.com/ribora/whisk/internal/plugins/scan"
+	"github.com/ribora/whisk/internal/plugins/validate"
 )
 
 // The listing exists because the answer is per-project, so what it has to get

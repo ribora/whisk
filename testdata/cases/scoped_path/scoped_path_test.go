@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/whisk/validate"
 )
 
 // A scoped field is named by its scan key unless the format tag names it.

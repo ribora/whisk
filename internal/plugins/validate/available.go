@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode"
 
-	"gitlab.com/gorib/whisk/internal/shared"
-	wvalidate "gitlab.com/gorib/whisk/validate"
+	"github.com/ribora/whisk/internal/shared"
+	wvalidate "github.com/ribora/whisk/validate"
 )
 
 // Origin says which of the three places a tag's check comes from. The order is

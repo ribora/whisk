@@ -5,7 +5,7 @@ import (
 	"go/types"
 	"strings"
 
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 // scan:"query=tag,repeated" -> scope query, key tag, LookupAll instead of Lookup.

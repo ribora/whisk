@@ -1,7 +1,7 @@
 package generator
 
 import (
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 // One section of the final file. Output must be deterministic — it is compared

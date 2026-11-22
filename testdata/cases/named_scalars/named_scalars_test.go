@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"gitlab.com/gorib/whisk/scan"
+	"github.com/ribora/whisk/scan"
 )
 
 type values map[string][]string

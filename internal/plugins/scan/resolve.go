@@ -3,8 +3,8 @@ package scan
 import (
 	"fmt"
 
-	"gitlab.com/gorib/whisk/internal/generator"
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/generator"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 // Distinct from the runtime "scan" import, which an extractor in pkg/scan

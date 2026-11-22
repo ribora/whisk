@@ -22,10 +22,10 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/gorib/whisk/internal/generator"
-	"gitlab.com/gorib/whisk/internal/plugins/scan"
-	"gitlab.com/gorib/whisk/internal/plugins/validate"
-	"gitlab.com/gorib/whisk/internal/shared"
+	"github.com/ribora/whisk/internal/generator"
+	"github.com/ribora/whisk/internal/plugins/scan"
+	"github.com/ribora/whisk/internal/plugins/validate"
+	"github.com/ribora/whisk/internal/shared"
 )
 
 var update = flag.Bool("update", false, "rewrite golden_whisk_gen.go files instead of comparing")
@@ -59,7 +59,7 @@ var successCases = []caseSpec{
 		dir:     "custom_validator",
 		format:  scan.FormatJSON,
 		storage: "checks",
-		checks:  "gitlab.com/gorib/whisk/testdata/cases/custom_validator/checks",
+		checks:  "github.com/ribora/whisk/testdata/cases/custom_validator/checks",
 	},
 	{
 		dir: "custom_format",
@@ -67,7 +67,7 @@ var successCases = []caseSpec{
 			Tag: "toml",
 			Import: generator.Import{
 				Alias: "bodyfmt",
-				Path:  "gitlab.com/gorib/whisk/testdata/cases/custom_format/extractor",
+				Path:  "github.com/ribora/whisk/testdata/cases/custom_format/extractor",
 			},
 			Unmarshal: "bodyfmt.UnmarshalToml",
 		},
@@ -182,7 +182,7 @@ var runnableCases = []string{
 func TestGoldensRun(t *testing.T) {
 	args := []string{"test", "-count=1"}
 	for _, dir := range runnableCases {
-		args = append(args, "gitlab.com/gorib/whisk/testdata/cases/"+dir)
+		args = append(args, "github.com/ribora/whisk/testdata/cases/"+dir)
 	}
 	cmd := exec.Command("go", args...)
 	cmd.Dir = caseDir(t, "")
@@ -198,7 +198,7 @@ func TestGoldensRun(t *testing.T) {
 func TestGoldensCompile(t *testing.T) {
 	args := []string{"build"}
 	for _, c := range successCases {
-		args = append(args, "gitlab.com/gorib/whisk/testdata/cases/"+c.dir)
+		args = append(args, "github.com/ribora/whisk/testdata/cases/"+c.dir)
 	}
 	cmd := exec.Command("go", args...)
 	cmd.Dir = caseDir(t, "")

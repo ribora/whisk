@@ -6,8 +6,8 @@ package text_unmarshal
 
 import (
 	"github.com/google/uuid"
-	"gitlab.com/gorib/failure"
-	"gitlab.com/gorib/whisk/scan"
+	"github.com/ribora/failure"
+	"github.com/ribora/whisk/scan"
 	"strings"
 )
 

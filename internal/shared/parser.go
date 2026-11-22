@@ -115,7 +115,7 @@ func describe(name, pkgPath string, named *types.Named, st *types.Struct) (Struc
 	if err != nil {
 		return StructInfo{}, err
 	}
-	hasParse, err := ownHookSignature(named, "parse", "gitlab.com/gorib/whisk/scan.Source")
+	hasParse, err := ownHookSignature(named, "parse", "github.com/ribora/whisk/scan.Source")
 	if err != nil {
 		return StructInfo{}, err
 	}
